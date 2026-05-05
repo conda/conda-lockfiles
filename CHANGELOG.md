@@ -29,6 +29,7 @@
 ### Other
 
 * Add cross-tool interop tests that export to `rattler-lock-v6` / `conda-lock-v1` and feed the output back into `pixi install --frozen` and `conda-lock install`, behind a new `interop` pytest marker that skips when the external tool is not on `PATH`. `conda-lock` added to the `test` pixi feature so CI picks it up. (#9 via #131)
+* Drop `conda-canary/label/dev` from the pixi channel list; conda-forge stable carries everything we need now. Add Python 3.14 to the test matrix and pixi environments.
 * Fix the `conda-libmamba-solver` canary hash in CI and re-lock the committed env. (#113, #120)
 * Infrastructure and template sync from `conda-bot`. (#81, #90, #94, #134)
 * Dependency and workflow bumps from `dependabot`. (#75, #85, #96, #104, #115)
