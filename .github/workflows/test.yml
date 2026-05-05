@@ -29,10 +29,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["310", "311", "312", "313"]
+        python-version: ["310", "311", "312", "313", "314"]
         include:
           - os: macos-latest
-            python-version: "313"
+            python-version: "314"
     env:
       PIXI_ENV_NAME: test-py${{ matrix.python-version }}
       CONDA_NOTIFY_OUTDATED_CONDA: "false"
@@ -84,7 +84,7 @@ jobs:
       - name: Setup project
         run: |
           pixi run --environment build dev
-          echo "channels: [conda-canary/label/dev, conda-forge]" > .pixi/envs/build/.condarc
+          echo "channels: [conda-forge]" > .pixi/envs/build/.condarc
 
       - name: Debug conda environment
         run: |
