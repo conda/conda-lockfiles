@@ -28,7 +28,7 @@ RECIPES_DIR = DATA_DIR / "recipes"
 
 # lockfiles
 PIXI_DIR = DATA_DIR / "pixi"
-PIXI_METADATA_DIR = DATA_DIR / "pixi-metadata"
+PIXI_V6_METADATA_DIR = DATA_DIR / "pixi-v6-metadata"
 PIXI_V7_METADATA_DIR = DATA_DIR / "pixi-v7-metadata"
 CONDA_LOCK_METADATA_DIR = DATA_DIR / "conda-lock-metadata"
 INVALID_LOCKFILES_DIR = DATA_DIR / "invalid-lockfiles"

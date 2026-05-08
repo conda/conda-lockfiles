@@ -92,10 +92,7 @@ def test_available_platforms() -> None:
     loader = RattlerLockV7Loader(PIXI_V7_METADATA_DIR / PIXI_LOCK_FILE)
     loader.can_handle()
     assert set(loader.available_platforms) == {
-        "linux-64",
-        "osx-64",
-        "osx-arm64",
-        "win-64",
+        "linux-64", "osx-64", "osx-arm64", "win-64",
     }
 
 
@@ -192,9 +189,9 @@ def test_can_handle_raises_validation_errors(tmp_path: Path) -> None:
 
 def test_v7_rejects_v6_lockfile() -> None:
     """Ensure v7 loader rejects a v6 lockfile."""
-    from tests import PIXI_METADATA_DIR
+    from tests import PIXI_V6_METADATA_DIR
 
-    loader = RattlerLockV7Loader(PIXI_METADATA_DIR / PIXI_LOCK_FILE)
+    loader = RattlerLockV7Loader(PIXI_V6_METADATA_DIR / PIXI_LOCK_FILE)
     with pytest.raises(CondaValueError):
         loader.can_handle()
 
