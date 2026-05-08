@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 def conda_environment_specifiers() -> Iterable[CondaEnvironmentSpecifier]:
     from .conda_lock import v1 as conda_lock_v1
     from .rattler_lock import v6 as rattler_lock_v6
+    from .rattler_lock import v7 as rattler_lock_v7
 
     yield CondaEnvironmentSpecifier(
         name=conda_lock_v1.FORMAT,
@@ -34,12 +35,21 @@ def conda_environment_specifiers() -> Iterable[CondaEnvironmentSpecifier]:
         description="Rattler-based lockfile format from pixi",
         environment_format=EnvironmentFormat.lockfile,
     )
+    yield CondaEnvironmentSpecifier(
+        name=rattler_lock_v7.FORMAT,
+        aliases=rattler_lock_v7.ALIASES,
+        default_filenames=rattler_lock_v7.DEFAULT_FILENAMES,
+        environment_spec=rattler_lock_v7.RattlerLockV7Loader,
+        description="Rattler-based lockfile format from pixi (v7)",
+        environment_format=EnvironmentFormat.lockfile,
+    )
 
 
 @hookimpl
 def conda_environment_exporters() -> Iterable[CondaEnvironmentExporter]:
     from .conda_lock import v1 as conda_lock_v1
     from .rattler_lock import v6 as rattler_lock_v6
+    from .rattler_lock import v7 as rattler_lock_v7
 
     yield CondaEnvironmentExporter(
         name=conda_lock_v1.FORMAT,
@@ -55,5 +65,13 @@ def conda_environment_exporters() -> Iterable[CondaEnvironmentExporter]:
         default_filenames=rattler_lock_v6.DEFAULT_FILENAMES,
         multiplatform_export=rattler_lock_v6.multiplatform_export,
         description="Rattler-based lockfile format from pixi",
+        environment_format=EnvironmentFormat.lockfile,
+    )
+    yield CondaEnvironmentExporter(
+        name=rattler_lock_v7.FORMAT,
+        aliases=rattler_lock_v7.ALIASES,
+        default_filenames=rattler_lock_v7.DEFAULT_FILENAMES,
+        multiplatform_export=rattler_lock_v7.multiplatform_export,
+        description="Rattler-based lockfile format from pixi (v7)",
         environment_format=EnvironmentFormat.lockfile,
     )
