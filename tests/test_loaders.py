@@ -228,8 +228,7 @@ def test_create_environment_from_rattler_lock_v7(
     assert pkg.version == "2025b"
     assert pkg.build == "h78e105d_0"
     assert (
-        pkg.sha256
-        == "5aaa366385d716557e365f0a4e9c3fca43ba196872abbbe3d56bb610d131e192"
+        pkg.sha256 == "5aaa366385d716557e365f0a4e9c3fca43ba196872abbbe3d56bb610d131e192"
     )
     assert pkg.md5 == "4222072737ccff51314b5ece9c7d6f5a"
     assert pkg.license == "ONLY_IN_LOCKFILE"
