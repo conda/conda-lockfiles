@@ -13,7 +13,7 @@ from conda_lockfiles.conda_lock import v1 as conda_lock_v1
 from conda_lockfiles.rattler_lock import v6 as rattler_lock_v6
 from conda_lockfiles.rattler_lock import v7 as rattler_lock_v7
 
-from . import CONDA_LOCK_METADATA_DIR, PIXI_METADATA_DIR, PIXI_V7_METADATA_DIR
+from . import CONDA_LOCK_METADATA_DIR, PIXI_V6_METADATA_DIR, PIXI_V7_METADATA_DIR
 
 CONDA_LOCK_METADATA_BUILDS = {
     "linux-64": "hee588c1_0",
@@ -169,7 +169,7 @@ def test_create_environment_from_conda_lock_v1(
 def test_create_environment_from_rattler_lock_v6(
     plugin_manager: CondaPluginManager,
 ) -> None:
-    path = PIXI_METADATA_DIR / rattler_lock_v6.PIXI_LOCK_FILE
+    path = PIXI_V6_METADATA_DIR / rattler_lock_v6.PIXI_LOCK_FILE
     loader = plugin_manager.get_environment_specifier(
         path,
         rattler_lock_v6.FORMAT,
@@ -228,7 +228,8 @@ def test_create_environment_from_rattler_lock_v7(
     assert pkg.version == "2025b"
     assert pkg.build == "h78e105d_0"
     assert (
-        pkg.sha256 == "5aaa366385d716557e365f0a4e9c3fca43ba196872abbbe3d56bb610d131e192"
+        pkg.sha256
+        == "5aaa366385d716557e365f0a4e9c3fca43ba196872abbbe3d56bb610d131e192"
     )
     assert pkg.md5 == "4222072737ccff51314b5ece9c7d6f5a"
     assert pkg.license == "ONLY_IN_LOCKFILE"
@@ -250,7 +251,7 @@ EXPECTED_PLATFORMS = ("linux-64", "osx-64", "osx-arm64", "win-64")
         pytest.param(
             (
                 rattler_lock_v6.RattlerLockV6Loader,
-                PIXI_METADATA_DIR / rattler_lock_v6.PIXI_LOCK_FILE,
+                PIXI_V6_METADATA_DIR / rattler_lock_v6.PIXI_LOCK_FILE,
             ),
             id="rattler-lock-v6",
         ),

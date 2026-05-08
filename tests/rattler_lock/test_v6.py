@@ -17,7 +17,7 @@ from conda_lockfiles.rattler_lock.v6 import PIXI_LOCK_FILE, RattlerLockV6Loader
 from .. import (
     INVALID_LOCKFILES_DIR,
     PIXI_DIR,
-    PIXI_METADATA_DIR,
+    PIXI_V6_METADATA_DIR,
     SINGLE_PACKAGE_ENV,
     SINGLE_PACKAGE_NO_URL_ENV,
     compare_rattler_lock_v6,
@@ -130,7 +130,7 @@ def test_noarch(
     "lockfile,should_raise",
     [
         pytest.param(
-            PIXI_METADATA_DIR / PIXI_LOCK_FILE,
+            PIXI_V6_METADATA_DIR / PIXI_LOCK_FILE,
             False,
             id="valid-lockfile",
         ),
