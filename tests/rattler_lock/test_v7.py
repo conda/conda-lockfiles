@@ -92,7 +92,10 @@ def test_available_platforms() -> None:
     loader = RattlerLockV7Loader(PIXI_V7_METADATA_DIR / PIXI_LOCK_FILE)
     loader.can_handle()
     assert set(loader.available_platforms) == {
-        "linux-64", "osx-64", "osx-arm64", "win-64",
+        "linux-64",
+        "osx-64",
+        "osx-arm64",
+        "win-64",
     }
 
 
