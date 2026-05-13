@@ -139,5 +139,8 @@ src/
 # hatch-vcs
 conda_lockfiles/_version.py
 
+# macOS
+.DS_Store
+
 # vscode
 .vscode/

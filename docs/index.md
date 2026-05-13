@@ -2,9 +2,8 @@
 
 `conda-lockfiles` provides support in `conda` for many types of lockfiles in the conda ecosystem.
 
-:::{warning}
-This project is still in early stages of development. Don't use it in production (yet).
-We do welcome feedback on what the expected behaviour should have been if something doesn't work!
+:::{note}
+We welcome feedback on any issues with `conda-lockfiles`.
 
 Please submit bug reports or feature requests [here](https://github.com/conda-incubator/conda-lockfiles).
 :::

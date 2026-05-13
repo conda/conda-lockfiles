@@ -65,7 +65,7 @@ the tiebreaker work so conda picks the current-stable plugin. Until
 that lands, users pass `--format rattler-lock-vN` alongside `--file
 pixi.lock` to disambiguate.
 
-On the read side, `conda env create -f pixi.lock` dispatches on file
+On the read side, `conda create -f pixi.lock` dispatches on file
 contents. Each specifier's `can_handle()` rejects files it cannot
 parse, so both plugins can coexist without manual disambiguation.
 
@@ -81,7 +81,7 @@ nothing rewrites them. To upgrade one, re-create the environment from
 the existing file and re-export at the new format:
 
 ```shell
-conda env create --name lockfile-upgrade --file pixi.lock
+conda create --name lockfile-upgrade --file pixi.lock
 conda export \
   --name lockfile-upgrade \
   --format rattler-lock-v7 \

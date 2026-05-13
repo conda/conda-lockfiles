@@ -8,7 +8,7 @@ The `conda-lockfiles` plugin is integrated directly into the following conda com
 The `create` and `export` commands allow you to create environments from lockfiles or
 save and share them, respectively.
 
-## Using `conda create` or `conda env create` to create environments from lockfiles
+## Using `conda create` to create environments from lockfiles
 
 ```shell
 # Same committed file on another machine or in CI; conda uses the slice for the current subdir.  Autodetect format.
