@@ -28,7 +28,7 @@ body:
       label: Steps to reproduce
       description: Please provide step-by-step instructions to reproduce the issue.
       placeholder: |
-        1. Create environment with `conda env create -n test-env --env-spec=conda-lock-v1 --file=path/to/lockfile.yml`
+        1. Create environment with `conda create -n test-env --env-spec=conda-lock-v1 --file=path/to/lockfile.yml`
         2. Try to export with `conda export -n test-env --format=conda-lock-v1`
         3. See error...
     validations:

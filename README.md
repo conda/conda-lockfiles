@@ -2,10 +2,6 @@
 
 Support for different lockfiles in the `conda` CLI tool.
 
-> [!IMPORTANT]
-> This project is still in early stages of development. Don't use it in production (yet).
-> We do welcome feedback on what the expected behaviour should have been if something doesn't work!
-
 <!-- docs-index-content-start -->
 ## What is this?
 
@@ -72,7 +68,7 @@ conda create --file FILE
 If conda is unable to determine the file format:
 
 ```bash
-conda env create --file FILE --format FORMAT
+conda create --file FILE --format FORMAT
 ```
 
 See [`conda create` docs](https://docs.conda.io/projects/conda/en/stable/commands/create.html) for more details.
