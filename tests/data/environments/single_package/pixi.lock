@@ -6,6 +6,9 @@ environments:
     packages:
       linux-64:
         - conda: https://conda.anaconda.org/conda-forge/noarch/python_abi-3.13-7_cp313.conda
+    requested-packages:
+      linux-64:
+        - python_abi
 packages:
   - conda: https://conda.anaconda.org/conda-forge/noarch/python_abi-3.13-7_cp313.conda
     sha256: 0595134584589064f56e67d3de1d8fcbb673a972946bce25fb593fb092fdcd97
