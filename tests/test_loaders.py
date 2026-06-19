@@ -11,8 +11,9 @@ if TYPE_CHECKING:
 
 from conda_lockfiles.conda_lock import v1 as conda_lock_v1
 from conda_lockfiles.rattler_lock import v6 as rattler_lock_v6
+from conda_lockfiles.rattler_lock import v7 as rattler_lock_v7
 
-from . import CONDA_LOCK_METADATA_DIR, PIXI_METADATA_DIR
+from . import CONDA_LOCK_METADATA_DIR, PIXI_V6_METADATA_DIR, PIXI_V7_METADATA_DIR
 
 CONDA_LOCK_METADATA_BUILDS = {
     "linux-64": "hee588c1_0",
@@ -47,6 +48,10 @@ CONDA_LOCK_METADATA_MD5 = {
             rattler_lock_v6.FORMAT,
             "Rattler-based lockfile format from pixi",
         ),
+        (
+            rattler_lock_v7.FORMAT,
+            "Rattler-based lockfile format from pixi (v7)",
+        ),
     ],
 )
 def test_specifier_plugin_metadata(
@@ -72,6 +77,10 @@ def test_specifier_plugin_metadata(
             rattler_lock_v6.FORMAT,
             "Rattler-based lockfile format from pixi",
         ),
+        (
+            rattler_lock_v7.FORMAT,
+            "Rattler-based lockfile format from pixi (v7)",
+        ),
     ],
 )
 def test_exporter_plugin_metadata(
@@ -91,6 +100,7 @@ def test_exporter_plugin_metadata(
         ("conda-lock", conda_lock_v1.FORMAT),
         ("pixi-lock-v6", rattler_lock_v6.FORMAT),
         ("pixi", rattler_lock_v6.FORMAT),
+        ("pixi-lock-v7", rattler_lock_v7.FORMAT),
     ],
 )
 def test_specifier_alias_resolves(
@@ -110,6 +120,7 @@ def test_specifier_alias_resolves(
         ("conda-lock", conda_lock_v1.FORMAT),
         ("pixi-lock-v6", rattler_lock_v6.FORMAT),
         ("pixi", rattler_lock_v6.FORMAT),
+        ("pixi-lock-v7", rattler_lock_v7.FORMAT),
     ],
 )
 def test_exporter_alias_resolves(
@@ -158,7 +169,7 @@ def test_create_environment_from_conda_lock_v1(
 def test_create_environment_from_rattler_lock_v6(
     plugin_manager: CondaPluginManager,
 ) -> None:
-    path = PIXI_METADATA_DIR / rattler_lock_v6.PIXI_LOCK_FILE
+    path = PIXI_V6_METADATA_DIR / rattler_lock_v6.PIXI_LOCK_FILE
     loader = plugin_manager.get_environment_specifier(
         path,
         rattler_lock_v6.FORMAT,
@@ -191,6 +202,39 @@ def test_create_environment_from_rattler_lock_v6(
     assert pkg.timestamp == 1742727099.393
 
 
+def test_create_environment_from_rattler_lock_v7(
+    plugin_manager: CondaPluginManager,
+) -> None:
+    path = PIXI_V7_METADATA_DIR / rattler_lock_v7.PIXI_LOCK_FILE
+    loader = plugin_manager.get_environment_specifier(
+        path,
+        rattler_lock_v7.FORMAT,
+    )
+    assert loader.name == rattler_lock_v7.FORMAT
+    assert loader.environment_spec == rattler_lock_v7.RattlerLockV7Loader
+
+    spec = loader.environment_spec(path)
+    assert spec.can_handle()
+    assert spec.env
+    assert spec.env.prefix == context.target_prefix
+    assert not spec.env.requested_packages
+    assert not spec.env.external_packages
+
+    explicit_packages = spec.env.explicit_packages
+    assert len(explicit_packages) == 1
+
+    pkg = explicit_packages[0]
+    assert pkg.name == "tzdata"
+    assert pkg.version == "2025b"
+    assert pkg.build == "h78e105d_0"
+    assert (
+        pkg.sha256 == "5aaa366385d716557e365f0a4e9c3fca43ba196872abbbe3d56bb610d131e192"
+    )
+    assert pkg.md5 == "4222072737ccff51314b5ece9c7d6f5a"
+    assert pkg.license == "ONLY_IN_LOCKFILE"
+    assert pkg.size == 122968
+
+
 EXPECTED_PLATFORMS = ("linux-64", "osx-64", "osx-arm64", "win-64")
 
 
@@ -206,9 +250,16 @@ EXPECTED_PLATFORMS = ("linux-64", "osx-64", "osx-arm64", "win-64")
         pytest.param(
             (
                 rattler_lock_v6.RattlerLockV6Loader,
-                PIXI_METADATA_DIR / rattler_lock_v6.PIXI_LOCK_FILE,
+                PIXI_V6_METADATA_DIR / rattler_lock_v6.PIXI_LOCK_FILE,
             ),
             id="rattler-lock-v6",
+        ),
+        pytest.param(
+            (
+                rattler_lock_v7.RattlerLockV7Loader,
+                PIXI_V7_METADATA_DIR / rattler_lock_v7.PIXI_LOCK_FILE,
+            ),
+            id="rattler-lock-v7",
         ),
     ],
 )
