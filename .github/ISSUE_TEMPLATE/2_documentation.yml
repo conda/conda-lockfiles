@@ -1,8 +1,19 @@
+# edit this in https://github.com/conda/infrastructure
+
 name: Documentation
-description: Create a documentation related issue for conda-lockfiles.
+description: Create a documentation related issue.
 labels:
   - type::documentation
 body:
+  - type: markdown
+    attributes:
+      value: |
+        > [!NOTE]
+        > Documentation requests that are incomplete or missing information may be closed as inactionable.
+
+        Since there are already a lot of open issues, please also take a moment to search existing ones to see if your bug has already been reported. If you find something related, please upvote that issue and provide additional details as necessary.
+
+        💐 Thank you for helping to make conda better. We would be unable to improve conda without our community!
   - type: checkboxes
     id: checks
     attributes:
@@ -16,39 +27,10 @@ body:
   - type: textarea
     id: what
     attributes:
-      label: What documentation issue did you find?
-      description: Mention here any typos, broken links, or missing, incomplete, or outdated information, etc. that you have noticed in the conda-lockfiles documentation or CLI help.
+      label: What happened?
+      description: Mention here any typos, broken links, or missing, incomplete, or outdated information, etc. that you have noticed in the conda docs or CLI help.
     validations:
       required: true
-  - type: dropdown
-    id: doc-type
-    attributes:
-      label: Type of documentation issue
-      description: What type of documentation issue is this?
-      options:
-        - Typo or grammatical error
-        - Missing information
-        - Outdated information
-        - Broken link
-        - Unclear or confusing explanation
-        - Missing examples
-        - CLI help text issue
-        - Other
-  - type: textarea
-    id: location
-    attributes:
-      label: Where is this issue located?
-      description: Please provide the specific location of the documentation issue (URL, file path, section name, etc.).
-      placeholder: |
-        - URL: https://conda-incubator.github.io/conda-lockfiles/...
-        - File: README.md, docs/installation.md, etc.
-        - CLI command: conda lockfiles --help
-        - Section: Installation, Usage, etc.
-  - type: textarea
-    id: suggestion
-    attributes:
-      label: Suggested Improvement
-      description: If you have a suggestion for how to fix or improve the documentation, please share it here.
   - type: textarea
     id: context
     attributes:
