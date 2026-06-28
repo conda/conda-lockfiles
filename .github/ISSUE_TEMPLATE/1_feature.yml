@@ -1,8 +1,21 @@
+# edit this in https://github.com/conda/infrastructure
+
 name: Feature Request
-description: Create a feature request for conda-lockfiles functionality, including lockfile format support requests.
+description: Create a feature request.
 labels:
   - type::feature
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Because processing new feature requests is time-consuming, we would like to ask you to fill out the following form to the best of your ability and as completely as possible.
+
+        > [!NOTE]
+        > Feature requests that are incomplete or missing information may be closed as inactionable.
+
+        Since there are already a lot of open issues, please also take a moment to search existing ones to see if your feature request has already been submitted. If you find something related, please upvote that issue and provide additional details as necessary.
+
+        💐 Thank you for helping to make `conda/conda-lockfiles` better. We would be unable to improve `conda/conda-lockfiles` without our community!
   - type: checkboxes
     id: checks
     attributes:
@@ -13,20 +26,6 @@ body:
           required: true
         - label: I searched open requests and couldn't find a duplicate
           required: true
-  - type: dropdown
-    id: feature-type
-    attributes:
-      label: Type of feature request
-      description: What type of feature request is this?
-      options:
-        - General feature
-        - New lockfile format support
-        - Enhancement to existing lockfile format support
-        - CLI/command enhancement
-        - Performance improvement
-        - Other
-    validations:
-      required: true
   - type: textarea
     id: idea
     attributes:
@@ -44,64 +43,8 @@ body:
     attributes:
       label: What should happen?
       description: What should be the user experience with the feature? Describe from a user perspective what they would do and see.
-  - type: dropdown
-    id: lockfile-format
-    attributes:
-      label: Related to lockfile format
-      description: If this feature is related to a specific lockfile format, please select it.
-      options:
-        - conda-lock.yml (conda-lock v1)
-        - pixi.lock (rattler_lock v6)
-        - All formats
-        - Other format (please specify)
-  - type: textarea
-    id: format-info
-    attributes:
-      label: Lockfile Format Information (if requesting new format support)
-      description: If requesting support for a new lockfile format, provide details about the format.
-      placeholder: |
-        - Format name: [e.g., conda-lock.yml, pixi.lock, poetry.lock, etc.]
-        - Format version: [if applicable]
-        - Specification URL: [if available]
-        - Brief description of the format
-  - type: textarea
-    id: implementation
-    attributes:
-      label: Implementation Considerations (for new lockfile formats)
-      description: If requesting a new lockfile format, what considerations should be taken into account for implementation?
-      placeholder: |
-        - Key differences from existing supported formats
-        - Special parsing requirements
-        - Platform-specific considerations
-        - Dependencies or libraries needed
-  - type: textarea
-    id: sample
-    attributes:
-      label: Sample Lockfile (optional, for format requests)
-      description: If requesting a new lockfile format, provide a small sample to help understand its structure.
-      placeholder: |
-        ```yaml
-        # Example lockfile content
-        version: 1.0
-        packages:
-          - name: numpy
-            version: 1.24.0
-        ```
-      render: shell
-  - type: textarea
-    id: use-case
-    attributes:
-      label: Use Case
-      description: Describe a specific use case or workflow where this feature would be valuable.
-      placeholder: |
-        Example: "As a data scientist, I want to export my environment to a conda-lock.yml file so that I can share reproducible environments with my team."
-  - type: textarea
-    id: priority
-    attributes:
-      label: Priority and Impact
-      description: How important is this feature? Who would benefit from it? What is the expected impact?
   - type: textarea
     id: context
     attributes:
       label: Additional Context
-      description: Include any additional information (or screenshots) that you think would be valuable.
+      description: Include any additional information that you think would be valuable.
