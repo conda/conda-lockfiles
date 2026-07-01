@@ -37,6 +37,7 @@ pytestmark = pytest.mark.interop
 # avoids flakiness from the solver picking different builds across
 # platforms. zlib is what the existing round-trip tests already use.
 INTEROP_PACKAGE = "zlib"
+CONDA_FORGE_CHANNEL_ARGS = ("--override-channels", "--channel=conda-forge")
 
 
 @pytest.fixture
@@ -90,7 +91,7 @@ def test_external_tool_consumes_our_export(
     lockfile = workdir / filename
 
     # Export a small env via our plugin.
-    with tmp_env(INTEROP_PACKAGE) as prefix:
+    with tmp_env(*CONDA_FORGE_CHANNEL_ARGS, INTEROP_PACKAGE) as prefix:
         out, err, rc = conda_cli(
             "export",
             f"--prefix={prefix}",
