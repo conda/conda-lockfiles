@@ -10,7 +10,7 @@ from conda.exceptions import CondaValueError
 from conda.models.channel import Channel
 from conda.models.environment import Environment, EnvironmentConfig
 from conda.plugins.types import EnvironmentSpecBase
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, ValidationError, model_validator
 from ruamel.yaml import YAMLError
 from ruamel.yaml.parser import ParserError
 
@@ -81,20 +81,19 @@ class RattlerLockV7PackageReference(BaseModel):
     conda_source: str | None = None
     pypi: str | None = None
 
-    @field_validator("conda", "pypi", "conda_source")
-    @classmethod
-    def check_at_least_one(cls, value, info):
+    @model_validator(mode="after")
+    def check_exactly_one(self):
         """Ensure exactly one package type is specified."""
         present = sum(
             1
-            for key in ("conda", "pypi", "conda_source")
-            if info.data.get(key) is not None
+            for value in (self.conda, self.pypi, self.conda_source)
+            if value is not None
         )
-        if value is not None and present > 1:
+        if present != 1:
             raise ValueError(
                 "Exactly one of 'conda', 'pypi', or 'conda_source' must be specified"
             )
-        return value
+        return self
 
     _MISSING_MSG = "One of 'conda', 'pypi', or 'conda_source' must be specified"
 
@@ -196,14 +195,6 @@ class RattlerLockV7(BaseModel):
         Field(description="Complete list of packages with full metadata"),
     ]
 
-    @field_validator("environments")
-    @classmethod
-    def check_default_env(cls, value):
-        """Ensure default environment exists."""
-        if "default" not in value:
-            raise ValueError("Lock file must contain a 'default' environment")
-        return value
-
 
 def _record_to_package(record: PackageRecord) -> RattlerLockV7Package:
     """
@@ -304,6 +295,16 @@ def rattler_lock_v7_to_conda_env(
 
     # Resolve platform name to subdir via top-level platforms list
     platform_map = {p.name: p.resolved_subdir for p in lockfile.platforms}
+    if platform not in platform_map:
+        raise ValueError(
+            f"Platform {platform!r} not in lockfile. "
+            f"Available platforms: {', '.join(platform_map)}"
+        )
+    if environment.packages and platform not in environment.packages:
+        raise ValueError(
+            f"Platform {platform!r} not found in environment {name!r}. "
+            f"Available platforms for environment: {', '.join(environment.packages)}"
+        )
 
     channels = environment.channels
     config = EnvironmentConfig(
@@ -314,13 +315,18 @@ def rattler_lock_v7_to_conda_env(
     external_packages: dict[str, list[str]] = {}
     for ref in environment.packages.get(platform, ()):
         if ref.conda:
-            explicit_packages[ref.url] = next(
-                pkg for pkg in lockfile.packages if pkg.url == ref.url
-            ).model_dump()
+            try:
+                package = next(pkg for pkg in lockfile.packages if pkg.url == ref.url)
+            except StopIteration:
+                raise ValueError(
+                    f"Package reference {ref.url!r} was not found in packages list"
+                )
+            explicit_packages[ref.url] = package.model_dump()
         elif ref.conda_source:
-            # Source packages are not installable via conda; skip for now.
-            # Future: could build from source using the embedded metadata.
-            pass
+            raise ValueError(
+                "rattler-lock-v7 conda_source packages are not supported by "
+                "conda-lockfiles yet"
+            )
         else:
             try:
                 key = PACKAGE_TYPE_MAPPING[ref.package_type]

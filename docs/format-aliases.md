@@ -20,13 +20,13 @@ The unversioned `pixi` alias currently still resolves to
 in a future release; see [Bump policy](developer/maintaining) for
 details.
 
-## What the two names mean
+## What the names mean
 
-The canonical names (`conda-lock-v1`, `rattler-lock-v6`) identify one
-specific file-format version and never change meaning. `conda-lock-v1`
-will still be `conda-lock-v1` after `conda-lock-v2` ships. Use these in
-committed lockfiles, CI pins, and anywhere a file is exchanged with
-another tool.
+The canonical names (`conda-lock-v1`, `rattler-lock-v6`,
+`rattler-lock-v7`) identify one specific file-format version and never
+change meaning. `conda-lock-v1` will still be `conda-lock-v1` after
+`conda-lock-v2` ships. Use these in committed lockfiles, CI pins, and
+anywhere a file is exchanged with another tool.
 
 The unversioned aliases (`conda-lock`, `pixi`) resolve to whichever
 version is current-stable in the installed conda-lockfiles release. Use
