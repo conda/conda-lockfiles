@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +19,7 @@ from ruamel.yaml.parser import ParserError
 
 from .. import __version__
 from ..exceptions import CondaLockfilesParserError, CondaLockfilesValidationError
+from ..history import requested_specs_from_prefix
 from ..load_yaml import load_yaml
 from ..records_from_conda_urls import records_from_conda_urls
 from ..validate_urls import validate_urls
@@ -63,6 +65,12 @@ PIP_EXPORT_WARNING: Final = (
     "  2. Install the pip packages manually after applying the lockfile"
 )
 
+#: Key under ``metadata.custom_metadata`` that carries a JSON-encoded list of
+#: user-requested ``MatchSpec`` strings. Named to match CEP 32's
+#: ``requested_specs`` terminology; stored as a JSON string because
+#: ``custom_metadata`` is constrained to ``dict[str, str]`` by CEP 37.
+REQUESTED_SPECS_KEY: Final = "requested_specs"
+
 
 class CondaLockV1Hash(BaseModel):
     """Hash information for a package."""
@@ -99,9 +107,25 @@ class CondaLockV1TimeMetadata(BaseModel):
 
 
 class CondaLockV1CustomMetadata(BaseModel):
-    """Custom metadata for the lockfile."""
+    """Custom metadata block for the conda-lock v1 lockfile.
 
-    created_by: str
+    CEP 37 specifies ``custom_metadata`` as ``dict[str, str]`` (free-form
+    key-value string pairs), so on the wire this is still a flat string
+    map. We model it as a typed ``BaseModel`` with a couple of well-known
+    fields plus ``extra="allow"`` so callers can round-trip arbitrary
+    extra keys without us losing track of them.
+
+    Structured payloads (e.g. the :data:`REQUESTED_SPECS_KEY` list of
+    ``MatchSpec`` strings) are JSON-encoded into a single string to
+    satisfy the ``dict[str, str]`` constraint required for interop with
+    ``conda-lock`` (whose pydantic model is ``StrictModel`` and rejects
+    non-string values here).
+    """
+
+    model_config = {"extra": "allow"}
+
+    created_by: str | None = None
+    requested_specs: str | None = None
 
 
 class CondaLockV1Metadata(BaseModel):
@@ -220,19 +244,69 @@ def conda_lock_v1_from_conda_envs(envs: Iterable[Environment]) -> CondaLockV1:
         for channel in env.config.channels
     ]
 
+    # Record user intent in custom_metadata. We re-derive from the prefix's
+    # history rather than trusting env.requested_packages, which conda
+    # populates with the full install list by default (conda/conda#15961).
+    # Union specs across environments so multi-platform exports keep them.
+    requested: set[str] = set()
+    for e in env_list:
+        requested.update(requested_specs_from_prefix(e.prefix))
+    custom_metadata = CondaLockV1CustomMetadata(
+        created_by=f"conda-lockfiles {__version__}",
+        requested_specs=(json.dumps(sorted(requested)) if requested else None),
+    )
+
     metadata = CondaLockV1Metadata(
         content_hash={},  # Empty for now, could be computed later
         channels=channels,
         platforms=sorted(e.platform for e in env_list),
         sources=[""],  # Empty source as before
         time_metadata=CondaLockV1TimeMetadata(created_at=timestamp),
-        custom_metadata=CondaLockV1CustomMetadata(
-            created_by=f"conda-lockfiles {__version__}"
-        ),
+        custom_metadata=custom_metadata,
     )
 
     # Construct and return CondaLockV1 instance
     return CondaLockV1(version=1, metadata=metadata, package=packages)
+
+
+def _requested_packages_from_metadata(
+    metadata: CondaLockV1Metadata,
+    explicit_package_names: set[str],
+) -> list[MatchSpec]:
+    """Decode requested specs from ``metadata.custom_metadata``.
+
+    Returns an empty list when the key is absent or unparseable. Specs
+    whose package name is not in ``explicit_package_names`` are dropped
+    with a warning; ``Environment.__post_init__`` would otherwise reject
+    the whole object.
+    """
+    if metadata.custom_metadata is None:
+        return []
+    raw = metadata.custom_metadata.requested_specs
+    if not raw:
+        return []
+    try:
+        spec_strings = json.loads(raw)
+    except (TypeError, ValueError):
+        warnings.warn(
+            f"{REQUESTED_SPECS_KEY!r} in lockfile custom_metadata is not "
+            "valid JSON; dropping requested_packages.",
+            stacklevel=2,
+        )
+        return []
+    if not isinstance(spec_strings, list):
+        return []
+    specs: list[MatchSpec] = []
+    for s in spec_strings:
+        if not isinstance(s, str):
+            continue
+        try:
+            ms = MatchSpec(s)
+        except Exception:
+            continue
+        if ms.name in explicit_package_names:
+            specs.append(ms)
+    return specs
 
 
 def conda_lock_v1_to_conda_env(
@@ -285,14 +359,19 @@ def conda_lock_v1_to_conda_env(
                 raise ValueError(f"Unknown package type: {pkg.manager}")
             external_packages.setdefault(key, []).append(pkg.url)
 
+    resolved_explicit = records_from_conda_urls(
+        explicit_packages, dry_run=context.dry_run
+    )
     return Environment(
         prefix=context.target_prefix,
         platform=platform,
         config=config,
-        explicit_packages=records_from_conda_urls(
-            explicit_packages, dry_run=context.dry_run
-        ),
+        explicit_packages=resolved_explicit,
         external_packages=external_packages,
+        requested_packages=_requested_packages_from_metadata(
+            lockfile.metadata,
+            {pkg.name for pkg in resolved_explicit},
+        ),
     )
 
 

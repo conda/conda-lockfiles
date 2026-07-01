@@ -9,12 +9,14 @@ from conda.common.serialize import yaml_safe_dump
 from conda.exceptions import CondaValueError
 from conda.models.channel import Channel
 from conda.models.environment import Environment, EnvironmentConfig
+from conda.models.match_spec import MatchSpec
 from conda.plugins.types import EnvironmentSpecBase
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from ruamel.yaml import YAMLError
 from ruamel.yaml.parser import ParserError
 
 from ..exceptions import CondaLockfilesParserError, CondaLockfilesValidationError
+from ..history import requested_specs_from_prefix
 from ..load_yaml import load_yaml
 from ..records_from_conda_urls import records_from_conda_urls
 from ..validate_urls import validate_urls
@@ -116,11 +118,29 @@ class RattlerLockV6Package(RattlerLockV6PackageReference):
 class RattlerLockV6Environment(BaseModel):
     """An environment specification in a rattler lock file."""
 
+    model_config = {"populate_by_name": True}
+
     channels: list[RattlerLockV6Channel]
     packages: Annotated[
         dict[str, list[RattlerLockV6PackageReference]],
         Field(description="Mapping of platforms to package references (package URLs)"),
     ]
+    # Non-standard extension: user-requested MatchSpec strings keyed by
+    # platform. Serialized as ``requested-packages`` to match rattler's
+    # kebab-case convention for multi-word keys. rattler silently ignores
+    # unknown fields on read, but WILL drop them on any re-serialize
+    # (``pixi add``, ``pixi update``, ...), so treat this as advisory.
+    requested_packages: Annotated[
+        dict[str, list[str]] | None,
+        Field(
+            default=None,
+            alias="requested-packages",
+            description=(
+                "User-requested MatchSpec strings, keyed by platform. "
+                "Non-standard extension; dropped on rattler re-serialize."
+            ),
+        ),
+    ] = None
 
 
 class RattlerLockV6(BaseModel):
@@ -230,8 +250,22 @@ def rattler_lock_v6_from_conda_envs(envs: Iterable[Environment]) -> RattlerLockV
     env = env_list[0]
     channels = [RattlerLockV6Channel(url=channel) for channel in env.config.channels]
 
+    # Record user intent per-platform from each prefix's history. We
+    # re-derive rather than trusting env.requested_packages because conda
+    # fills that with the full install list by default
+    # (conda/conda#15961).
+    requested_packages: dict[str, list[str]] = {}
+    for e in env_list:
+        specs = requested_specs_from_prefix(e.prefix)
+        if specs:
+            requested_packages[e.platform] = specs
+
     # Build environment
-    default_env = RattlerLockV6Environment(channels=channels, packages=platforms)
+    default_env = RattlerLockV6Environment(
+        channels=channels,
+        packages=platforms,
+        requested_packages=requested_packages or None,
+    )
 
     # Construct and return RattlerLockV6 instance
     return RattlerLockV6(
@@ -283,14 +317,34 @@ def rattler_lock_v6_to_conda_env(
                 raise ValueError(f"Unknown package type: {ref.package_type}")
             external_packages.setdefault(key, []).append(ref.url)
 
+    resolved_explicit = records_from_conda_urls(
+        explicit_packages, dry_run=context.dry_run
+    )
+
+    # Decode per-platform user-requested specs. Drop specs whose name
+    # isn't in the platform's explicit packages: Environment.__post_init__
+    # enforces requested_packages ⊆ explicit_packages by name.
+    requested_packages: list[MatchSpec] = []
+    if environment.requested_packages:
+        platform_specs = environment.requested_packages.get(platform, [])
+        explicit_names = {pkg.name for pkg in resolved_explicit}
+        for spec_str in platform_specs:
+            if not isinstance(spec_str, str):
+                continue
+            try:
+                ms = MatchSpec(spec_str)
+            except Exception:
+                continue
+            if ms.name in explicit_names:
+                requested_packages.append(ms)
+
     return Environment(
         prefix=context.target_prefix,
         platform=platform,
         config=config,
-        explicit_packages=records_from_conda_urls(
-            explicit_packages, dry_run=context.dry_run
-        ),
+        explicit_packages=resolved_explicit,
         external_packages=external_packages,
+        requested_packages=requested_packages,
     )
 
 
@@ -302,6 +356,7 @@ def multiplatform_export(envs: Iterable[Environment]) -> str:
             lockfile.model_dump(
                 exclude_none=True,
                 mode="python",
+                by_alias=True,
             )
         )
     except YAMLError as e:
