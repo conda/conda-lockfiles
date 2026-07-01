@@ -9,7 +9,11 @@ from conda.exceptions import CondaValueError
 
 from conda_lockfiles.exceptions import EnvironmentExportNotSupported
 from conda_lockfiles.load_yaml import load_yaml
-from conda_lockfiles.rattler_lock.v7 import PIXI_LOCK_FILE, RattlerLockV7Loader
+from conda_lockfiles.rattler_lock.v7 import (
+    PIXI_LOCK_FILE,
+    RattlerLockV7Loader,
+    rattler_lock_v7_to_conda_env,
+)
 
 from .. import (
     INVALID_LOCKFILES_DIR,
@@ -104,6 +108,211 @@ def test_env_for_invalid_platform() -> None:
     loader.can_handle()
     with pytest.raises(ValueError, match="not in lockfile"):
         loader.env_for("linux-aarch64")
+
+
+def test_env_rejects_missing_context_platform(tmp_path: Path) -> None:
+    lockfile = tmp_path / PIXI_LOCK_FILE
+    platform = "osx-64" if context.subdir != "osx-64" else "linux-64"
+    lockfile.write_text(
+        f"""\
+version: 7
+platforms:
+  - name: {platform}
+environments:
+  default:
+    channels: []
+    packages:
+      {platform}: []
+packages: []
+"""
+    )
+
+    loader = RattlerLockV7Loader(lockfile)
+    assert loader.can_handle()
+    with pytest.raises(CondaValueError, match=f"Platform {context.subdir!r}"):
+        loader.env
+
+
+def test_env_for_rejects_platform_missing_from_environment(tmp_path: Path) -> None:
+    lockfile = tmp_path / PIXI_LOCK_FILE
+    lockfile.write_text(
+        """\
+version: 7
+platforms:
+  - name: linux-64
+  - name: osx-64
+environments:
+  default:
+    channels: []
+    packages:
+      linux-64: []
+packages: []
+"""
+    )
+
+    loader = RattlerLockV7Loader(lockfile)
+    assert loader.can_handle()
+    with pytest.raises(ValueError, match="not found in environment"):
+        loader.env_for("osx-64")
+
+
+def test_env_for_rejects_conda_source_packages(tmp_path: Path) -> None:
+    lockfile = tmp_path / PIXI_LOCK_FILE
+    lockfile.write_text(
+        """\
+version: 7
+platforms:
+  - name: linux-64
+environments:
+  default:
+    channels: []
+    packages:
+      linux-64:
+        - conda_source: "my-package[12345678] @ ./my-package"
+packages:
+  - conda_source: "my-package[12345678] @ ./my-package"
+    version: 0.1.0
+    build: py_0
+    subdir: noarch
+"""
+    )
+
+    loader = RattlerLockV7Loader(lockfile)
+    assert loader.can_handle()
+    with pytest.raises(ValueError, match="conda_source packages are not supported"):
+        loader.env_for("linux-64")
+
+
+def test_env_for_rejects_missing_package_metadata(tmp_path: Path) -> None:
+    url = "https://conda.anaconda.org/conda-forge/noarch/tzdata-2025b-h78e105d_0.conda"
+    lockfile = tmp_path / PIXI_LOCK_FILE
+    lockfile.write_text(
+        f"""\
+version: 7
+platforms:
+  - name: linux-64
+environments:
+  default:
+    channels: []
+    packages:
+      linux-64:
+        - conda: {url}
+packages: []
+"""
+    )
+
+    loader = RattlerLockV7Loader(lockfile)
+    assert loader.can_handle()
+    with pytest.raises(ValueError, match="was not found in packages list"):
+        loader.env_for("linux-64")
+
+
+def test_can_handle_rejects_invalid_package_references(tmp_path: Path) -> None:
+    lockfile = tmp_path / PIXI_LOCK_FILE
+    lockfile.write_text(
+        """\
+version: 7
+platforms:
+  - name: linux-64
+environments:
+  default:
+    channels: []
+    packages:
+      linux-64:
+        - conda: https://example.test/pkg.conda
+          pypi: https://example.test/pkg.whl
+packages:
+  - conda: https://example.test/pkg.conda
+    pypi: https://example.test/pkg.whl
+"""
+    )
+
+    loader = RattlerLockV7Loader(lockfile)
+    with pytest.raises(CondaValueError, match="Exactly one"):
+        loader.can_handle()
+
+
+def test_can_handle_rejects_missing_package_reference_type(tmp_path: Path) -> None:
+    lockfile = tmp_path / PIXI_LOCK_FILE
+    lockfile.write_text(
+        """\
+version: 7
+platforms:
+  - name: linux-64
+environments:
+  default:
+    channels: []
+    packages:
+      linux-64:
+        - name: pkg
+packages:
+  - name: pkg
+"""
+    )
+
+    loader = RattlerLockV7Loader(lockfile)
+    with pytest.raises(CondaValueError, match="Exactly one"):
+        loader.can_handle()
+
+
+def test_can_handle_accepts_non_default_environments(tmp_path: Path) -> None:
+    lockfile = tmp_path / PIXI_LOCK_FILE
+    lockfile.write_text(
+        """\
+version: 7
+platforms:
+  - name: linux-64
+environments:
+  docs:
+    channels: []
+    packages: {}
+packages: []
+"""
+    )
+
+    loader = RattlerLockV7Loader(lockfile)
+    assert loader.can_handle()
+    env = rattler_lock_v7_to_conda_env(loader._model, name="docs", platform="linux-64")
+    assert env.platform == "linux-64"
+    assert not env.explicit_packages
+
+    with pytest.raises(CondaValueError, match="Environment 'default' not found"):
+        loader.env
+
+
+def test_env_for_preserves_pypi_references(tmp_path: Path) -> None:
+    lockfile = tmp_path / PIXI_LOCK_FILE
+    lockfile.write_text(
+        """\
+version: 7
+platforms:
+  - name: linux-64
+environments:
+  default:
+    channels: []
+    indexes:
+      - https://my-custom-index.example.com/simple
+    packages:
+      linux-64:
+        - pypi: ./local-pkg
+        - pypi: https://example.test/pkg-1.0-py3-none-any.whl
+packages:
+  - pypi: ./local-pkg
+    name: local-pkg
+  - pypi: https://example.test/pkg-1.0-py3-none-any.whl
+    name: pkg
+    version: "1.0"
+    sha256: f93fc78fe8bf15afe2b8d6b6499f1c73953571c004b3135db0c83b9a5fd4e5e1
+    index: https://my-custom-index.example.com/simple
+"""
+    )
+
+    loader = RattlerLockV7Loader(lockfile)
+    assert loader.can_handle()
+    env = loader.env_for("linux-64")
+    assert env.external_packages == {
+        "pypi": ["./local-pkg", "https://example.test/pkg-1.0-py3-none-any.whl"]
+    }
 
 
 def test_noarch(
