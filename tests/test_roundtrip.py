@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
 from conda.base.context import context
 from conda.common.compat import on_win
+from conda.common.path import BIN_DIRECTORY
 from conda.exceptions import CondaMultiError
 
 from conda_lockfiles.conda_lock import v1 as conda_lock_v1
@@ -14,6 +16,7 @@ from conda_lockfiles.rattler_lock import v6 as rattler_lock_v6
 from . import compare_conda_lock_v1, compare_rattler_lock_v6
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
     from typing import Callable
 
@@ -174,3 +177,41 @@ def test_multiplatform_export(
                 assert out
                 assert not err
                 assert rc == 0
+
+
+@pytest.fixture(scope="session")
+def conda_pypi_prefix(session_tmp_env: TmpEnvFixture) -> Iterator[Path]:
+    with session_tmp_env("python", "pip") as prefix:
+        # install tomli via pip
+        out = subprocess.check_output(
+            [prefix / BIN_DIRECTORY / "pip", "install", "--no-deps", "tomli"],
+            text=True,
+        )
+        assert "Successfully installed tomli" in out
+        yield prefix
+
+
+@pytest.mark.parametrize(
+    "lockname", [conda_lock_v1.CONDA_LOCK_FILE, rattler_lock_v6.PIXI_LOCK_FILE]
+)
+def test_pypi(
+    conda_cli: CondaCLIFixture,
+    tmp_path: Path,
+    lockname: str,
+    conda_pypi_prefix: Path,
+) -> None:
+    """Test that pypi packages are exportable."""
+    platforms = ["linux-64", "osx-arm64"]  # more than one
+    lockfile = tmp_path / lockname
+
+    # export environment
+    out, err, rc = conda_cli(
+        "export",
+        f"--prefix={conda_pypi_prefix}",
+        f"--file={lockfile}",
+        "--override-platforms",
+        *(f"--platform={platform}" for platform in platforms),
+    )
+    assert "Collecting package metadata" in out
+    assert not err
+    assert rc == 0
