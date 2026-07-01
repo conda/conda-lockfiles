@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 from ruamel.yaml import YAMLError
 from ruamel.yaml.parser import ParserError
 
+from ..aliases import pending_alias_binding_warning
 from ..exceptions import CondaLockfilesParserError, CondaLockfilesValidationError
 from ..load_yaml import load_yaml
 from ..records_from_conda_urls import records_from_conda_urls
@@ -35,7 +36,15 @@ FORMAT: Final = "rattler-lock-v6"
 #: format; ``pixi-lock-v6`` is the version-pinned alias. The short alias
 #: is listed first so that conda's help text renders it as the display
 #: label. See ``docs/format-aliases.md`` for the alias policy.
-ALIASES: Final = ("pixi", "pixi-lock-v6")
+ALIASES: Final = (
+    pending_alias_binding_warning(
+        "pixi",
+        current=FORMAT,
+        future="rattler-lock-v7",
+        flip_release="a future conda-lockfiles release",
+    ),
+    "pixi-lock-v6",
+)
 
 #: The filename of the rattler lock v6 format.
 PIXI_LOCK_FILE: Final = "pixi.lock"

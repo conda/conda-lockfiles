@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import warnings
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 import pytest
@@ -35,6 +37,21 @@ CONDA_LOCK_METADATA_MD5 = {
     "osx-arm64": "cda0ec640bc4698d0813a8fb459aee58",
     "win-64": "92b11b0b2120d563caa1629928122cee",
 }
+
+PIXI_ALIAS_WARNING = (
+    "'pixi' currently resolves to rattler-lock-v6 and will resolve to rattler-lock-v7"
+)
+
+
+@contextmanager
+def expect_alias_warning(alias: str):
+    if alias == "pixi":
+        with pytest.warns(PendingDeprecationWarning, match=PIXI_ALIAS_WARNING):
+            yield
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", PendingDeprecationWarning)
+            yield
 
 
 @pytest.mark.parametrize(
@@ -110,8 +127,9 @@ def test_specifier_alias_resolves(
 ) -> None:
     """Aliases resolve to the same plugin as the canonical format name."""
     specifiers = plugin_manager.get_environment_specifiers()
-    assert alias in specifiers
-    assert specifiers[alias].name == canonical_format
+    with expect_alias_warning(alias):
+        specifier = specifiers[alias]
+    assert specifier.name == canonical_format
 
 
 @pytest.mark.parametrize(
@@ -129,9 +147,28 @@ def test_exporter_alias_resolves(
     canonical_format: str,
 ) -> None:
     """`conda export --format <alias>` resolves to the canonical exporter."""
-    exporter = plugin_manager.get_environment_exporter_by_format(alias)
+    with expect_alias_warning(alias):
+        exporter = plugin_manager.get_environment_exporter_by_format(alias)
     assert exporter is not None
     assert exporter.name == canonical_format
+
+
+@pytest.mark.parametrize(
+    "format_name",
+    [
+        rattler_lock_v6.FORMAT,
+        "pixi-lock-v6",
+    ],
+)
+def test_pinned_rattler_lock_v6_names_do_not_warn(
+    plugin_manager: CondaPluginManager,
+    format_name: str,
+) -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", PendingDeprecationWarning)
+        assert plugin_manager.get_exporter_format_mapping()[format_name].name == (
+            rattler_lock_v6.FORMAT
+        )
 
 
 def test_create_environment_from_conda_lock_v1(

@@ -5,7 +5,8 @@
 * Add `rattler-lock-v7` as a version-pinned format alongside
   `rattler-lock-v6`, keeping the unversioned `pixi` alias on v6 for
   the overlap release and adding v7 parser, exporter, validation,
-  fixture, and pixi interop coverage. (#143)
+  fixture, pixi interop coverage, and pending alias-binding warnings
+  for the future `pixi` alias flip. (#143, #133)
 
 ## 0.2.0 (2026-05-06)
 
