@@ -1,8 +1,21 @@
+# edit this in https://github.com/conda/infrastructure
+
 name: Bug Report
-description: Create a bug report for conda-lockfiles functionality.
+description: Create a bug report.
 labels:
   - type::bug
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Because processing new bug reports is time-consuming, we would like to ask you to fill out the following form to the best of your ability and as completely as possible.
+
+        > [!NOTE]
+        > Bug reports that are incomplete or missing information may be closed as inactionable.
+
+        Since there are already a lot of open issues, please also take a moment to search existing ones to see if your bug has already been reported. If you find something related, please upvote that issue and provide additional details as necessary.
+
+        💐 Thank you for helping to make `conda/conda-lockfiles` better. We would be unable to improve `conda/conda-lockfiles` without our community!
   - type: checkboxes
     id: checks
     attributes:
@@ -13,8 +26,6 @@ body:
           required: true
         - label: I searched open reports and couldn't find a duplicate
           required: true
-        - label: I can reproduce this issue consistently
-          required: false
   - type: textarea
     id: what
     attributes:
@@ -55,6 +66,7 @@ body:
       label: Lockfile Information
       description: If the issue is related to a specific lockfile, please provide relevant details.
       placeholder: Lockfile format, lockfile contents, etc.
+
   - type: textarea
     id: context
     attributes:

@@ -1,0 +1,92 @@
+name: Lockfile Format Support
+description: Request support for a new lockfile format or changes to an existing lockfile format.
+labels:
+  - type::feature
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for requests about lockfile format support, including new formats, new format versions, and format-specific behavior changes.
+
+        Please include enough format details for maintainers to evaluate parsing, export, and install behavior.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      description: Please confirm and check all of the following options.
+      options:
+        - label: I added a descriptive title
+          required: true
+        - label: I searched open requests and couldn't find a duplicate
+          required: true
+  - type: dropdown
+    id: request-type
+    attributes:
+      label: Type of lockfile format request
+      description: What type of format support is this?
+      options:
+        - New lockfile format support
+        - New version of an existing lockfile format
+        - Enhancement to existing lockfile format support
+        - Bug-compatible behavior for another tool
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: format-info
+    attributes:
+      label: Lockfile format information
+      description: Describe the lockfile format or format version.
+      placeholder: |
+        - Format name:
+        - Format version:
+        - Specification URL:
+        - Tool that produces the format:
+        - Brief description:
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Sample lockfile
+      description: Provide a small representative sample, or link to one.
+      placeholder: |
+        ```yaml
+        # Example lockfile content
+        version: 1
+        packages:
+          - name: example
+        ```
+      render: shell
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected behavior
+      description: What should conda-lockfiles be able to read, write, or preserve for this format?
+    validations:
+      required: true
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation considerations
+      description: What should maintainers know before implementing this?
+      placeholder: |
+        - Key differences from existing supported formats
+        - Special parsing requirements
+        - Platform-specific considerations
+        - Dependencies or libraries needed
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: Describe the workflow or users that would benefit from this support.
+  - type: textarea
+    id: priority
+    attributes:
+      label: Priority and impact
+      description: How important is this support? Who would benefit from it?
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Include any additional information that you think would be valuable.

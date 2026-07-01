@@ -1,0 +1,33 @@
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Please provide step-by-step instructions to reproduce the issue.
+      placeholder: |
+        1. Create environment with `conda create -n test-env --env-spec=conda-lock-v1 --file=path/to/lockfile.yml`
+        2. Try to export with `conda export -n test-env --format=conda-lock-v1`
+        3. See error...
+    validations:
+      required: true
+  - type: textarea
+    id: conda-info
+    attributes:
+      label: conda info
+      description: Please run `conda info` and paste the output here.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: conda-list
+    attributes:
+      label: conda list --show-channel-urls
+      description: Please run `conda list --show-channel-urls` and paste the output here.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: lockfile
+    attributes:
+      label: Lockfile Information
+      description: If the issue is related to a specific lockfile, please provide relevant details.
+      placeholder: Lockfile format, lockfile contents, etc.
