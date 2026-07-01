@@ -30,6 +30,11 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
 
+PIXI_ALIAS_WARNING = (
+    "'pixi' currently resolves to rattler-lock-v6 and will resolve to rattler-lock-v7"
+)
+
+
 @pytest.mark.parametrize(
     "prefix,exception",
     [
@@ -71,6 +76,34 @@ def test_export_to_rattler_lock_v6(
         assert compare_rattler_lock_v6(lockfile, reference)
 
     # TODO: conda's context is not reset when EnvironmentExportNotSupported is raised?
+    reset_context()
+
+
+def test_export_to_pixi_alias_warns_about_future_flip(
+    mocker: MockerFixture,
+    tmp_path: Path,
+    conda_cli: CondaCLIFixture,
+) -> None:
+    mocker.patch(
+        "conda.base.context.Context.channels",
+        new_callable=mocker.PropertyMock,
+        return_value=("conda-forge",),
+    )
+
+    lockfile = tmp_path / PIXI_LOCK_FILE
+    with pytest.warns(PendingDeprecationWarning, match=PIXI_ALIAS_WARNING):
+        out, err, rc = conda_cli(
+            "export",
+            f"--prefix={SINGLE_PACKAGE_ENV}",
+            f"--file={lockfile}",
+            "--format=pixi",
+        )
+
+    assert not out
+    assert not err
+    assert rc == 0
+    assert compare_rattler_lock_v6(lockfile, SINGLE_PACKAGE_ENV / PIXI_LOCK_FILE)
+
     reset_context()
 
 
