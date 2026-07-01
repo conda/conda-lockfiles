@@ -13,6 +13,8 @@ from conda_lockfiles.rattler_lock import v6 as rattler_lock_v6
 
 from . import compare_conda_lock_v1, compare_rattler_lock_v6
 
+CONDA_FORGE_CHANNEL_ARGS = ("--override-channels", "--channel=conda-forge")
+
 if TYPE_CHECKING:
     from pathlib import Path
     from typing import Callable
@@ -52,7 +54,7 @@ def test_export(
     prefix2 = path_factory()
     lockfile2 = path_factory(filename)
 
-    with tmp_env("zlib") as prefix:
+    with tmp_env(*CONDA_FORGE_CHANNEL_ARGS, "zlib") as prefix:
         # export environment to a lockfile
         out, err, rc = conda_cli(
             "export",
@@ -96,7 +98,7 @@ def test_conda_lock_v1_export_detects_yaml_extension(
 ) -> None:
     """conda-lock-v1 must be inferred from conda-lock.yaml (CEP-37 / issue #121)."""
     lockfile = path_factory("conda-lock.yaml")
-    with tmp_env("zlib") as prefix:
+    with tmp_env(*CONDA_FORGE_CHANNEL_ARGS, "zlib") as prefix:
         out, err, rc = conda_cli(
             "export",
             f"--prefix={prefix}",
@@ -138,7 +140,7 @@ def test_multiplatform_export(
 ):
     platforms = tuple(sorted({context.subdir, "linux-64", "osx-arm64", "win-64"}))
     lockfile = path_factory(filename)
-    with tmp_env("zlib") as prefix:
+    with tmp_env(*CONDA_FORGE_CHANNEL_ARGS, "zlib") as prefix:
         # export environment to a lockfile
         out, err, rc = conda_cli(
             "export",
