@@ -59,3 +59,8 @@ conda/infrastructure:
     dst: rever.xsh
   - src: templates/releases/TEMPLATE
     dst: news/TEMPLATE
+
+./templates:
+  # [optional] conda-lockfiles-specific issue templates
+  - src: lockfile_format.yml
+    dst: .github/ISSUE_TEMPLATE/lockfile_format.yml
