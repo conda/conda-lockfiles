@@ -51,9 +51,10 @@ over two releases so the flip is never silent:
 Canonical names only participate in step 3. The unversioned alias
 (`pixi`, `conda-lock`) itself is never removed.
 
-The implementation of the warnings in steps 1 and 2 is tracked in
-[#133](https://github.com/conda-incubator/conda-lockfiles/issues/133)
-and will land alongside the first real format bump.
+The warning support for steps 1 and 2 lives in
+`conda_lockfiles.aliases`. Use `pending_alias_binding_warning()` during
+an overlap release and `flipped_alias_binding_warning()` during the
+flip release.
 
 ### Maintainer checklist
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import warnings
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 import pytest
@@ -11,8 +13,9 @@ if TYPE_CHECKING:
 
 from conda_lockfiles.conda_lock import v1 as conda_lock_v1
 from conda_lockfiles.rattler_lock import v6 as rattler_lock_v6
+from conda_lockfiles.rattler_lock import v7 as rattler_lock_v7
 
-from . import CONDA_LOCK_METADATA_DIR, PIXI_METADATA_DIR
+from . import CONDA_LOCK_METADATA_DIR, PIXI_V6_METADATA_DIR, PIXI_V7_METADATA_DIR
 
 CONDA_LOCK_METADATA_BUILDS = {
     "linux-64": "hee588c1_0",
@@ -35,6 +38,21 @@ CONDA_LOCK_METADATA_MD5 = {
     "win-64": "92b11b0b2120d563caa1629928122cee",
 }
 
+PIXI_ALIAS_WARNING = (
+    "'pixi' currently resolves to rattler-lock-v6 and will resolve to rattler-lock-v7"
+)
+
+
+@contextmanager
+def expect_alias_warning(alias: str):
+    if alias == "pixi":
+        with pytest.warns(PendingDeprecationWarning, match=PIXI_ALIAS_WARNING):
+            yield
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", PendingDeprecationWarning)
+            yield
+
 
 @pytest.mark.parametrize(
     "format_name,expected_description",
@@ -46,6 +64,10 @@ CONDA_LOCK_METADATA_MD5 = {
         (
             rattler_lock_v6.FORMAT,
             "Rattler-based lockfile format from pixi",
+        ),
+        (
+            rattler_lock_v7.FORMAT,
+            "Rattler-based lockfile format from pixi (v7)",
         ),
     ],
 )
@@ -72,6 +94,10 @@ def test_specifier_plugin_metadata(
             rattler_lock_v6.FORMAT,
             "Rattler-based lockfile format from pixi",
         ),
+        (
+            rattler_lock_v7.FORMAT,
+            "Rattler-based lockfile format from pixi (v7)",
+        ),
     ],
 )
 def test_exporter_plugin_metadata(
@@ -91,6 +117,7 @@ def test_exporter_plugin_metadata(
         ("conda-lock", conda_lock_v1.FORMAT),
         ("pixi-lock-v6", rattler_lock_v6.FORMAT),
         ("pixi", rattler_lock_v6.FORMAT),
+        ("pixi-lock-v7", rattler_lock_v7.FORMAT),
     ],
 )
 def test_specifier_alias_resolves(
@@ -100,8 +127,9 @@ def test_specifier_alias_resolves(
 ) -> None:
     """Aliases resolve to the same plugin as the canonical format name."""
     specifiers = plugin_manager.get_environment_specifiers()
-    assert alias in specifiers
-    assert specifiers[alias].name == canonical_format
+    with expect_alias_warning(alias):
+        specifier = specifiers[alias]
+    assert specifier.name == canonical_format
 
 
 @pytest.mark.parametrize(
@@ -110,6 +138,7 @@ def test_specifier_alias_resolves(
         ("conda-lock", conda_lock_v1.FORMAT),
         ("pixi-lock-v6", rattler_lock_v6.FORMAT),
         ("pixi", rattler_lock_v6.FORMAT),
+        ("pixi-lock-v7", rattler_lock_v7.FORMAT),
     ],
 )
 def test_exporter_alias_resolves(
@@ -118,9 +147,28 @@ def test_exporter_alias_resolves(
     canonical_format: str,
 ) -> None:
     """`conda export --format <alias>` resolves to the canonical exporter."""
-    exporter = plugin_manager.get_environment_exporter_by_format(alias)
+    with expect_alias_warning(alias):
+        exporter = plugin_manager.get_environment_exporter_by_format(alias)
     assert exporter is not None
     assert exporter.name == canonical_format
+
+
+@pytest.mark.parametrize(
+    "format_name",
+    [
+        rattler_lock_v6.FORMAT,
+        "pixi-lock-v6",
+    ],
+)
+def test_pinned_rattler_lock_v6_names_do_not_warn(
+    plugin_manager: CondaPluginManager,
+    format_name: str,
+) -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", PendingDeprecationWarning)
+        assert plugin_manager.get_exporter_format_mapping()[format_name].name == (
+            rattler_lock_v6.FORMAT
+        )
 
 
 def test_create_environment_from_conda_lock_v1(
@@ -158,7 +206,7 @@ def test_create_environment_from_conda_lock_v1(
 def test_create_environment_from_rattler_lock_v6(
     plugin_manager: CondaPluginManager,
 ) -> None:
-    path = PIXI_METADATA_DIR / rattler_lock_v6.PIXI_LOCK_FILE
+    path = PIXI_V6_METADATA_DIR / rattler_lock_v6.PIXI_LOCK_FILE
     loader = plugin_manager.get_environment_specifier(
         path,
         rattler_lock_v6.FORMAT,
@@ -191,6 +239,39 @@ def test_create_environment_from_rattler_lock_v6(
     assert pkg.timestamp == 1742727099.393
 
 
+def test_create_environment_from_rattler_lock_v7(
+    plugin_manager: CondaPluginManager,
+) -> None:
+    path = PIXI_V7_METADATA_DIR / rattler_lock_v7.PIXI_LOCK_FILE
+    loader = plugin_manager.get_environment_specifier(
+        path,
+        rattler_lock_v7.FORMAT,
+    )
+    assert loader.name == rattler_lock_v7.FORMAT
+    assert loader.environment_spec == rattler_lock_v7.RattlerLockV7Loader
+
+    spec = loader.environment_spec(path)
+    assert spec.can_handle()
+    assert spec.env
+    assert spec.env.prefix == context.target_prefix
+    assert not spec.env.requested_packages
+    assert not spec.env.external_packages
+
+    explicit_packages = spec.env.explicit_packages
+    assert len(explicit_packages) == 1
+
+    pkg = explicit_packages[0]
+    assert pkg.name == "tzdata"
+    assert pkg.version == "2025b"
+    assert pkg.build == "h78e105d_0"
+    assert (
+        pkg.sha256 == "5aaa366385d716557e365f0a4e9c3fca43ba196872abbbe3d56bb610d131e192"
+    )
+    assert pkg.md5 == "4222072737ccff51314b5ece9c7d6f5a"
+    assert pkg.license == "ONLY_IN_LOCKFILE"
+    assert pkg.size == 122968
+
+
 EXPECTED_PLATFORMS = ("linux-64", "osx-64", "osx-arm64", "win-64")
 
 
@@ -206,9 +287,16 @@ EXPECTED_PLATFORMS = ("linux-64", "osx-64", "osx-arm64", "win-64")
         pytest.param(
             (
                 rattler_lock_v6.RattlerLockV6Loader,
-                PIXI_METADATA_DIR / rattler_lock_v6.PIXI_LOCK_FILE,
+                PIXI_V6_METADATA_DIR / rattler_lock_v6.PIXI_LOCK_FILE,
             ),
             id="rattler-lock-v6",
+        ),
+        pytest.param(
+            (
+                rattler_lock_v7.RattlerLockV7Loader,
+                PIXI_V7_METADATA_DIR / rattler_lock_v7.PIXI_LOCK_FILE,
+            ),
+            id="rattler-lock-v7",
         ),
     ],
 )

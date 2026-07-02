@@ -28,7 +28,8 @@ RECIPES_DIR = DATA_DIR / "recipes"
 
 # lockfiles
 PIXI_DIR = DATA_DIR / "pixi"
-PIXI_METADATA_DIR = DATA_DIR / "pixi-metadata"
+PIXI_V6_METADATA_DIR = DATA_DIR / "pixi-v6-metadata"
+PIXI_V7_METADATA_DIR = DATA_DIR / "pixi-v7-metadata"
 CONDA_LOCK_METADATA_DIR = DATA_DIR / "conda-lock-metadata"
 INVALID_LOCKFILES_DIR = DATA_DIR / "invalid-lockfiles"
 
@@ -56,6 +57,12 @@ def compare_conda_lock_v1(lockfile: Path, reference: Path) -> Any:
 
 
 def compare_rattler_lock_v6(lockfile: Path, reference: Path) -> Any:
+    lockfile_data = yaml_safe_load(lockfile.read_text())
+    reference_data = yaml_safe_load(reference.read_text())
+    return lockfile_data == reference_data
+
+
+def compare_rattler_lock_v7(lockfile: Path, reference: Path) -> Any:
     lockfile_data = yaml_safe_load(lockfile.read_text())
     reference_data = yaml_safe_load(reference.read_text())
     return lockfile_data == reference_data

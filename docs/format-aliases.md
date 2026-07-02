@@ -9,17 +9,24 @@ short form reads better at the command line, an unversioned alias.
 | ----------------- | ----------------- | ------------------------------------ |
 | `conda-lock-v1`   | `conda-lock`      | `conda-lock.yml`, `conda-lock.yaml`  |
 | `rattler-lock-v6` | `pixi`            | `pixi.lock`                          |
+| `rattler-lock-v7` | *(pending flip)*  | `pixi.lock`                          |
 
 `rattler-lock-v6` also accepts `pixi-lock-v6` for compatibility with
 docs and tooling that use the `pixi-lock-v*` naming.
 
-## What the two names mean
+`rattler-lock-v7` accepts `pixi-lock-v7` as a version-pinned alias.
+The unversioned `pixi` alias currently still resolves to
+`rattler-lock-v6` (overlap release). It will flip to `rattler-lock-v7`
+in a future release; see [Bump policy](developer/maintaining) for
+details.
 
-The canonical names (`conda-lock-v1`, `rattler-lock-v6`) identify one
-specific file-format version and never change meaning. `conda-lock-v1`
-will still be `conda-lock-v1` after `conda-lock-v2` ships. Use these in
-committed lockfiles, CI pins, and anywhere a file is exchanged with
-another tool.
+## What the names mean
+
+The canonical names (`conda-lock-v1`, `rattler-lock-v6`,
+`rattler-lock-v7`) identify one specific file-format version and never
+change meaning. `conda-lock-v1` will still be `conda-lock-v1` after
+`conda-lock-v2` ships. Use these in committed lockfiles, CI pins, and
+anywhere a file is exchanged with another tool.
 
 The unversioned aliases (`conda-lock`, `pixi`) resolve to whichever
 version is current-stable in the installed conda-lockfiles release. Use

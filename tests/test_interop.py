@@ -19,6 +19,7 @@ import pytest
 
 from conda_lockfiles.conda_lock import v1 as conda_lock_v1
 from conda_lockfiles.rattler_lock import v6 as rattler_lock_v6
+from conda_lockfiles.rattler_lock import v7 as rattler_lock_v7
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -64,6 +65,12 @@ def require_tool() -> Callable[[str], str]:
             rattler_lock_v6.PIXI_LOCK_FILE,
             "pixi",
             id="pixi-consumes-rattler-lock-v6",
+        ),
+        pytest.param(
+            rattler_lock_v7.FORMAT,
+            rattler_lock_v7.PIXI_LOCK_FILE,
+            "pixi",
+            id="pixi-consumes-rattler-lock-v7",
         ),
         pytest.param(
             conda_lock_v1.FORMAT,
