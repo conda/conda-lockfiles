@@ -1,5 +1,21 @@
 [//]: # (current developments)
 
+## 0.2.1 (2026-07-07)
+
+### Docs
+
+* Remove the early-stage production warning from the README and docs, and update lockfile creation examples to use `conda create` consistently. (#144)
+
+### Tests
+
+* Make round-trip and interop tests create temporary environments with an explicit `conda-forge` channel so release checks do not depend on ambient conda channel configuration. (#153)
+
+### Other
+
+* Configure the standard on-demand release process template, including the `MAJOR.MINOR.PATCH` version placeholder for generated release files. (#149, #150)
+* Simplify the repository update workflow to scheduled/manual runs and refresh synced infrastructure workflow files. (#146, #147)
+* Bump `prefix-dev/setup-pixi` from 0.9.5 to 0.9.6 in the docs and test workflows. (#148)
+
 ## 0.2.0 (2026-05-06)
 
 ### Enhancements
