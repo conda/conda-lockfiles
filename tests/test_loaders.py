@@ -8,6 +8,7 @@ from conda.plugins.types import EnvironmentFormat
 
 if TYPE_CHECKING:
     from conda.plugins.manager import CondaPluginManager
+    from pytest_mock import MockerFixture
 
 from conda_lockfiles.conda_lock import v1 as conda_lock_v1
 from conda_lockfiles.rattler_lock import v6 as rattler_lock_v6
@@ -34,6 +35,14 @@ CONDA_LOCK_METADATA_MD5 = {
     "osx-arm64": "cda0ec640bc4698d0813a8fb459aee58",
     "win-64": "92b11b0b2120d563caa1629928122cee",
 }
+
+PYTHONHOSTED_WHEEL_URL = (
+    "https://files.pythonhosted.org/packages/ab/cd/langfuse-4.6.1-py3-none-any.whl"
+)
+PYTHONHOSTED_WHEEL_MD5 = "0123456789abcdef0123456789abcdef"
+PYTHONHOSTED_WHEEL_SHA256 = (
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+)
 
 
 @pytest.mark.parametrize(
@@ -240,3 +249,107 @@ def test_env_unchanged(loader) -> None:
     env = loader.env
     assert env.platform == context.subdir
     assert env.explicit_packages
+
+
+@pytest.mark.parametrize(
+    "module,lockfile,load_env,expected_overrides",
+    [
+        pytest.param(
+            conda_lock_v1,
+            conda_lock_v1.CondaLockV1(
+                metadata=conda_lock_v1.CondaLockV1Metadata(
+                    channels=[
+                        conda_lock_v1.CondaLockV1Channel(url="main"),
+                        conda_lock_v1.CondaLockV1Channel(url="conda-pypi"),
+                    ],
+                    platforms=["osx-arm64"],
+                ),
+                package=[
+                    conda_lock_v1.CondaLockV1Package(
+                        name="langfuse",
+                        version="4.6.1",
+                        manager="conda",
+                        platform="osx-arm64",
+                        dependencies={"protobuf": ">=6"},
+                        url=PYTHONHOSTED_WHEEL_URL,
+                        hash=conda_lock_v1.CondaLockV1Hash(
+                            md5=PYTHONHOSTED_WHEEL_MD5,
+                            sha256=PYTHONHOSTED_WHEEL_SHA256,
+                        ),
+                    )
+                ],
+            ),
+            conda_lock_v1.conda_lock_v1_to_conda_env,
+            {
+                "channel": "conda-pypi",
+                "depends": ["protobuf >=6"],
+                "md5": PYTHONHOSTED_WHEEL_MD5,
+                "name": "langfuse",
+                "sha256": PYTHONHOSTED_WHEEL_SHA256,
+                "version": "4.6.1",
+            },
+            id="conda-lock-v1",
+        ),
+        pytest.param(
+            rattler_lock_v6,
+            rattler_lock_v6.RattlerLockV6(
+                environments={
+                    "default": rattler_lock_v6.RattlerLockV6Environment(
+                        channels=[
+                            rattler_lock_v6.RattlerLockV6Channel(url="main"),
+                            rattler_lock_v6.RattlerLockV6Channel(url="conda-pypi"),
+                        ],
+                        packages={
+                            "osx-arm64": [
+                                rattler_lock_v6.RattlerLockV6PackageReference(
+                                    conda=PYTHONHOSTED_WHEEL_URL,
+                                )
+                            ]
+                        },
+                    )
+                },
+                packages=[
+                    rattler_lock_v6.RattlerLockV6Package(
+                        conda=PYTHONHOSTED_WHEEL_URL,
+                        md5=PYTHONHOSTED_WHEEL_MD5,
+                        sha256=PYTHONHOSTED_WHEEL_SHA256,
+                        depends=["python >=3.14"],
+                        license="MIT",
+                    )
+                ],
+            ),
+            rattler_lock_v6.rattler_lock_v6_to_conda_env,
+            {
+                "channel": "conda-pypi",
+                "depends": ["python >=3.14"],
+                "license": "MIT",
+                "md5": PYTHONHOSTED_WHEEL_MD5,
+                "sha256": PYTHONHOSTED_WHEEL_SHA256,
+            },
+            id="rattler-lock-v6",
+        ),
+    ],
+)
+def test_conda_pypi_record_overrides(
+    module,
+    lockfile,
+    load_env,
+    expected_overrides,
+    mocker: MockerFixture,
+) -> None:
+    """Loaders preserve conda-pypi wheel metadata for explicit package records."""
+    captured_metadata = {}
+
+    def capture_records(metadata_by_url, **kwargs):
+        captured_metadata.update(metadata_by_url)
+        return ()
+
+    mocker.patch.object(
+        module,
+        "records_from_conda_urls",
+        side_effect=capture_records,
+    )
+
+    load_env(lockfile, platform="osx-arm64")
+
+    assert captured_metadata[PYTHONHOSTED_WHEEL_URL] == expected_overrides

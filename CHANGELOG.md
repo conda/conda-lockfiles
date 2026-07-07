@@ -6,6 +6,10 @@
 
 * Remove the early-stage production warning from the README and docs, and update lockfile creation examples to use `conda create` consistently. (#144)
 
+### Bug fixes
+
+* Preserve conda-pypi wheel package channel, checksum, and subdir metadata when loading conda-lock v1 and rattler-lock v6 lockfiles. (#152)
+
 ### Tests
 
 * Make round-trip and interop tests create temporary environments with an explicit `conda-forge` channel so release checks do not depend on ambient conda channel configuration. (#153)

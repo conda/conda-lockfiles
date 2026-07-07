@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, ValidationError
 from ruamel.yaml import YAMLError
 from ruamel.yaml.parser import ParserError
 
-from .. import __version__
+from .. import CONDA_PYPI_CHANNEL_NAME, PYTHONHOSTED_URL_PREFIX, __version__
 from ..exceptions import CondaLockfilesParserError, CondaLockfilesValidationError
 from ..load_yaml import load_yaml
 from ..records_from_conda_urls import records_from_conda_urls
@@ -160,28 +160,6 @@ def _record_to_package(
     )
 
 
-def _package_to_record_overrides(pkg: CondaLockV1Package) -> dict[str, Any]:
-    """
-    Convert CondaLockV1Package to record overrides dict.
-
-    :param pkg: Package from lockfile
-    :return: Dict of overrides for records_from_conda_urls
-    """
-    if pkg.manager != "conda":
-        raise ValueError(f"Unsupported manager: {pkg.manager}")
-
-    return {
-        # dependencies are converted to a list of strings
-        "depends": [f"{name} {version}" for name, version in pkg.dependencies.items()],
-        # platform is renamed to subdir
-        "subdir": pkg.platform,
-        # pass through other fields
-        "name": pkg.name,
-        "version": pkg.version,
-        "hash": pkg.hash.model_dump(exclude_none=True),
-    }
-
-
 def conda_lock_v1_from_conda_envs(envs: Iterable[Environment]) -> CondaLockV1:
     """
     Create a CondaLockV1 lockfile from conda Environment objects.
@@ -263,6 +241,14 @@ def conda_lock_v1_to_conda_env(
     # Map conda-lock v1 packages to conda/external package records
     explicit_packages: dict[str, dict[str, Any]] = {}
     external_packages: dict[str, list[str]] = {}
+    conda_pypi_channel = next(
+        (
+            channel.url
+            for channel in lockfile.metadata.channels
+            if Channel(channel.url).canonical_name == CONDA_PYPI_CHANNEL_NAME
+        ),
+        None,
+    )
     for pkg in lockfile.package:
         # Filter packages
         if pkg.platform != platform:
@@ -276,7 +262,17 @@ def conda_lock_v1_to_conda_env(
 
         # Group by manager
         if pkg.manager == "conda":
-            explicit_packages[pkg.url] = _package_to_record_overrides(pkg)
+            overrides = {
+                "depends": [
+                    f"{name} {version}" for name, version in pkg.dependencies.items()
+                ],
+                "name": pkg.name,
+                "version": pkg.version,
+                **pkg.hash.model_dump(exclude_none=True),
+            }
+            if conda_pypi_channel and pkg.url.startswith(PYTHONHOSTED_URL_PREFIX):
+                overrides["channel"] = conda_pypi_channel
+            explicit_packages[pkg.url] = overrides
         else:
             # Map conda-lock v1 package type to conda package type
             try:
