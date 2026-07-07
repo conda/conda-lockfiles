@@ -12,6 +12,12 @@ if TYPE_CHECKING:
 #: Application name.
 APP_NAME: Final = "conda-lockfiles"
 
+#: Channel name used for conda-pypi wheel package records.
+CONDA_PYPI_CHANNEL_NAME: Final = "conda-pypi"
+
+#: URL prefix used by PyPI-hosted wheel artifacts in conda-pypi records.
+PYTHONHOSTED_URL_PREFIX: Final = "https://files.pythonhosted.org/"
+
 try:
     from ._version import __version__
 except ImportError:
