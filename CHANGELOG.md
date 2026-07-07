@@ -8,7 +8,7 @@
 
 ### Bug fixes
 
-* Preserve conda-pypi wheel package channel, checksum, and subdir metadata when loading conda-lock v1 and rattler-lock v6 lockfiles. (#152)
+* Preserve conda-pypi wheel package channel, checksum, and subdir metadata when loading conda-lock v1 and rattler-lock v6 lockfiles. (#156)
 
 ### Tests
 
