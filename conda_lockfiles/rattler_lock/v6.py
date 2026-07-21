@@ -301,7 +301,7 @@ def rattler_lock_v6_to_conda_env(
             if conda_pypi_channel and ref.url.startswith(PYTHONHOSTED_URL_PREFIX):
                 overrides["channel"] = conda_pypi_channel
                 if not fetch:
-                    overrides.update(build="pypi_0", subdir="noarch")
+                    overrides.update(build="py3_none_any_0", subdir="noarch")
             explicit_packages[ref.url] = overrides
         else:
             # Map rattler v6 package type to conda package type

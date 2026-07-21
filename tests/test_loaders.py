@@ -396,7 +396,7 @@ def test_conda_pypi_record_overrides(
     assert captured_calls[0][1]["fetch"] is True
     assert captured_calls[1][0][PYTHONHOSTED_WHEEL_URL] == {
         **expected_overrides,
-        "build": "pypi_0",
+        "build": "py3_none_any_0",
         "subdir": "noarch",
     }
     assert captured_calls[1][1]["fetch"] is False
