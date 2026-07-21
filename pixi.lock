@@ -9022,12 +9022,14 @@ packages:
   timestamp: 1766420268400
 - pypi: ./
   name: conda-lockfiles
-  version: 0.1.2.dev43+g4c3ae9bd0.d20260505
-  sha256: f13e30be23ca3ca4addc6fea6e31590bde639367f2a0e8a2b789f4f1c189c78d
+  version: 0.2.2.dev1+gae6e92650.d20260721
+  sha256: 90720953b9d9e53bcc67acb483a2e52115c9784ee1f33183767609503546858e
   requires_dist:
+  - packaging>=23.0
   - pydantic>=2.12.5,<3
   - ruamel-yaml
   requires_python: '>=3.10'
+  editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/conda-package-handling-2.4.0-pyh7900ff3_2.conda
   sha256: 8b2b1c235b7cbfa8488ad88ff934bdad25bac6a4c035714681fbff85b602f3f0
   md5: 32c158f481b4fd7630c565030f7bc482

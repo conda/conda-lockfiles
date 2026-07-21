@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from conda.base.context import context
+from conda.exceptions import CondaValueError
 from conda.plugins.types import EnvironmentFormat
 
 if TYPE_CHECKING:
@@ -239,9 +240,23 @@ def test_env_for(loader, platform) -> None:
     assert env.explicit_packages
 
 
-def test_env_for_unknown_platform_raises(loader) -> None:
+def test_env_for_transcode_does_not_fetch(loader, mocker: MockerFixture) -> None:
+    execute = mocker.patch(
+        "conda.core.package_cache_data.ProgressiveFetchExtract.execute",
+        side_effect=AssertionError("package fetch attempted"),
+    )
+
+    env = loader.env_for_transcode(context.subdir)
+
+    execute.assert_not_called()
+    assert env.platform == context.subdir
+    assert env.explicit_packages
+
+
+@pytest.mark.parametrize("method", ["env_for", "env_for_transcode"])
+def test_env_for_unknown_platform_raises(loader, method: str) -> None:
     with pytest.raises(ValueError, match="not in lockfile"):
-        loader.env_for("not-a-real-platform")
+        getattr(loader, method)("not-a-real-platform")
 
 
 def test_env_unchanged(loader) -> None:
@@ -249,6 +264,30 @@ def test_env_unchanged(loader) -> None:
     env = loader.env
     assert env.platform == context.subdir
     assert env.explicit_packages
+
+
+def test_rattler_lock_v6_rejects_missing_package_metadata() -> None:
+    url = "https://example.com/linux-64/example-1.0-0.conda"
+    lockfile = rattler_lock_v6.RattlerLockV6(
+        environments={
+            "default": rattler_lock_v6.RattlerLockV6Environment(
+                channels=[],
+                packages={
+                    "linux-64": [
+                        rattler_lock_v6.RattlerLockV6PackageReference(conda=url)
+                    ]
+                },
+            )
+        },
+        packages=[],
+    )
+
+    with pytest.raises(CondaValueError, match="missing from the packages list"):
+        rattler_lock_v6.rattler_lock_v6_to_conda_env(
+            lockfile,
+            platform="linux-64",
+            fetch=False,
+        )
 
 
 @pytest.mark.parametrize(
@@ -337,11 +376,11 @@ def test_conda_pypi_record_overrides(
     expected_overrides,
     mocker: MockerFixture,
 ) -> None:
-    """Loaders preserve conda-pypi wheel metadata for explicit package records."""
-    captured_metadata = {}
+    """Loaders preserve wheel metadata in full and export-only records."""
+    captured_calls = []
 
     def capture_records(metadata_by_url, **kwargs):
-        captured_metadata.update(metadata_by_url)
+        captured_calls.append((metadata_by_url, kwargs))
         return ()
 
     mocker.patch.object(
@@ -351,5 +390,13 @@ def test_conda_pypi_record_overrides(
     )
 
     load_env(lockfile, platform="osx-arm64")
+    load_env(lockfile, platform="osx-arm64", fetch=False)
 
-    assert captured_metadata[PYTHONHOSTED_WHEEL_URL] == expected_overrides
+    assert captured_calls[0][0][PYTHONHOSTED_WHEEL_URL] == expected_overrides
+    assert captured_calls[0][1]["fetch"] is True
+    assert captured_calls[1][0][PYTHONHOSTED_WHEEL_URL] == {
+        **expected_overrides,
+        "build": "pypi_0",
+        "subdir": "noarch",
+    }
+    assert captured_calls[1][1]["fetch"] is False

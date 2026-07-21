@@ -246,6 +246,8 @@ def rattler_lock_v6_to_conda_env(
     lockfile: RattlerLockV6,
     name: str = "default",
     platform: str = context.subdir,
+    *,
+    fetch: bool = True,
 ) -> Environment:
     """
     Render lockfile as a conda environment
@@ -253,6 +255,8 @@ def rattler_lock_v6_to_conda_env(
     :param lockfile: RattlerLockV6 lockfile model
     :param name: Environment name to extract
     :param platform: Platform to extract packages for
+    :param fetch: Fetch complete package records for installation. Environments
+        created with ``fetch=False`` must only be passed to lockfile exporters.
     :return: Conda Environment object
     """
     # validate `name` and `platform` arguments
@@ -281,13 +285,23 @@ def rattler_lock_v6_to_conda_env(
     for ref in environment.packages.get(platform, ()):
         # Group by manager
         if ref.conda:
-            pkg = next(pkg for pkg in lockfile.packages if pkg.url == ref.url)
+            pkg = next(
+                (pkg for pkg in lockfile.packages if pkg.url == ref.url),
+                None,
+            )
+            if pkg is None:
+                raise CondaValueError(
+                    f"Package {ref.url!r} is referenced by environment {name!r} "
+                    "but missing from the packages list."
+                )
             overrides = pkg.model_dump(
                 exclude={"conda", "pypi"},
                 exclude_none=True,
             )
             if conda_pypi_channel and ref.url.startswith(PYTHONHOSTED_URL_PREFIX):
                 overrides["channel"] = conda_pypi_channel
+                if not fetch:
+                    overrides.update(build="pypi_0", subdir="noarch")
             explicit_packages[ref.url] = overrides
         else:
             # Map rattler v6 package type to conda package type
@@ -302,7 +316,9 @@ def rattler_lock_v6_to_conda_env(
         platform=platform,
         config=config,
         explicit_packages=records_from_conda_urls(
-            explicit_packages, dry_run=context.dry_run
+            explicit_packages,
+            dry_run=context.dry_run,
+            fetch=fetch,
         ),
         external_packages=external_packages,
     )
@@ -386,3 +402,16 @@ class RattlerLockV6Loader(EnvironmentSpecBase):
                 f"Available platforms: {', '.join(self.available_platforms)}"
             )
         return rattler_lock_v6_to_conda_env(self._model, platform=platform)
+
+    def env_for_transcode(self, platform: str) -> Environment:
+        """Return an export-only Environment without fetching package metadata."""
+        if platform not in self.available_platforms:
+            raise ValueError(
+                f"Platform {platform!r} not in lockfile. "
+                f"Available platforms: {', '.join(self.available_platforms)}"
+            )
+        return rattler_lock_v6_to_conda_env(
+            self._model,
+            platform=platform,
+            fetch=False,
+        )

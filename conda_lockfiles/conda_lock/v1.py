@@ -216,12 +216,16 @@ def conda_lock_v1_from_conda_envs(envs: Iterable[Environment]) -> CondaLockV1:
 def conda_lock_v1_to_conda_env(
     lockfile: CondaLockV1,
     platform: str = context.subdir,
+    *,
+    fetch: bool = True,
 ) -> Environment:
     """
     Render lockfile as a conda environment.
 
     :param lockfile: CondaLockV1 lockfile model
     :param platform: Platform to extract packages for
+    :param fetch: Fetch complete package records for installation. Environments
+        created with ``fetch=False`` must only be passed to lockfile exporters.
     :return: Conda Environment object
     """
     # Validate platform is available
@@ -272,6 +276,8 @@ def conda_lock_v1_to_conda_env(
             }
             if conda_pypi_channel and pkg.url.startswith(PYTHONHOSTED_URL_PREFIX):
                 overrides["channel"] = conda_pypi_channel
+                if not fetch:
+                    overrides.update(build="pypi_0", subdir="noarch")
             explicit_packages[pkg.url] = overrides
         else:
             # Map conda-lock v1 package type to conda package type
@@ -286,7 +292,9 @@ def conda_lock_v1_to_conda_env(
         platform=platform,
         config=config,
         explicit_packages=records_from_conda_urls(
-            explicit_packages, dry_run=context.dry_run
+            explicit_packages,
+            dry_run=context.dry_run,
+            fetch=fetch,
         ),
         external_packages=external_packages,
     )
@@ -366,3 +374,16 @@ class CondaLockV1Loader(EnvironmentSpecBase):
                 f"Available platforms: {', '.join(self.available_platforms)}"
             )
         return conda_lock_v1_to_conda_env(self._model, platform=platform)
+
+    def env_for_transcode(self, platform: str) -> Environment:
+        """Return an export-only Environment without fetching package metadata."""
+        if platform not in self.available_platforms:
+            raise ValueError(
+                f"Platform {platform!r} not in lockfile. "
+                f"Available platforms: {', '.join(self.available_platforms)}"
+            )
+        return conda_lock_v1_to_conda_env(
+            self._model,
+            platform=platform,
+            fetch=False,
+        )
