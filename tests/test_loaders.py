@@ -240,23 +240,23 @@ def test_env_for(loader, platform) -> None:
     assert env.explicit_packages
 
 
-def test_env_for_transcode_does_not_fetch(loader, mocker: MockerFixture) -> None:
+def test_env_for_export_does_not_fetch(loader, mocker: MockerFixture) -> None:
     execute = mocker.patch(
         "conda.core.package_cache_data.ProgressiveFetchExtract.execute",
         side_effect=AssertionError("package fetch attempted"),
     )
 
-    env = loader.env_for_transcode(context.subdir)
+    env = loader.env_for(context.subdir, export=True)
 
     execute.assert_not_called()
     assert env.platform == context.subdir
     assert env.explicit_packages
 
 
-@pytest.mark.parametrize("method", ["env_for", "env_for_transcode"])
-def test_env_for_unknown_platform_raises(loader, method: str) -> None:
+@pytest.mark.parametrize("export", [False, True], ids=["install", "export"])
+def test_env_for_unknown_platform_raises(loader, export: bool) -> None:
     with pytest.raises(ValueError, match="not in lockfile"):
-        getattr(loader, method)("not-a-real-platform")
+        loader.env_for("not-a-real-platform", export=export)
 
 
 def test_env_unchanged(loader) -> None:

@@ -394,17 +394,11 @@ class RattlerLockV6Loader(EnvironmentSpecBase):
             self._validate_model()
         return tuple(sorted(self._model.environments["default"].packages.keys()))
 
-    def env_for(self, platform: str) -> Environment:
-        """Return the Environment for a specific platform in the lockfile."""
-        if platform not in self.available_platforms:
-            raise ValueError(
-                f"Platform {platform!r} not in lockfile. "
-                f"Available platforms: {', '.join(self.available_platforms)}"
-            )
-        return rattler_lock_v6_to_conda_env(self._model, platform=platform)
+    def env_for(self, platform: str, *, export: bool = False) -> Environment:
+        """Return the Environment for a specific platform in the lockfile.
 
-    def env_for_transcode(self, platform: str) -> Environment:
-        """Return an export-only Environment without fetching package metadata."""
+        Export environments are reconstructed without downloading packages.
+        """
         if platform not in self.available_platforms:
             raise ValueError(
                 f"Platform {platform!r} not in lockfile. "
@@ -413,5 +407,5 @@ class RattlerLockV6Loader(EnvironmentSpecBase):
         return rattler_lock_v6_to_conda_env(
             self._model,
             platform=platform,
-            fetch=False,
+            fetch=not export,
         )

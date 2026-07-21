@@ -1,6 +1,6 @@
 ### Enhancements
 
-* Add a metadata-only `env_for_transcode()` loader path so callers can convert lockfiles without downloading package artifacts.
+* Add an export mode to `env_for()` so callers can export lockfiles without downloading package artifacts.
 
 ### Bug fixes
 
