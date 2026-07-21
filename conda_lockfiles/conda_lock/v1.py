@@ -366,17 +366,11 @@ class CondaLockV1Loader(EnvironmentSpecBase):
             self._validate_model()
         return tuple(self._model.metadata.platforms)
 
-    def env_for(self, platform: str) -> Environment:
-        """Return the Environment for a specific platform in the lockfile."""
-        if platform not in self.available_platforms:
-            raise ValueError(
-                f"Platform {platform!r} not in lockfile. "
-                f"Available platforms: {', '.join(self.available_platforms)}"
-            )
-        return conda_lock_v1_to_conda_env(self._model, platform=platform)
+    def env_for(self, platform: str, *, export: bool = False) -> Environment:
+        """Return the Environment for a specific platform in the lockfile.
 
-    def env_for_transcode(self, platform: str) -> Environment:
-        """Return an export-only Environment without fetching package metadata."""
+        Export environments are reconstructed without downloading packages.
+        """
         if platform not in self.available_platforms:
             raise ValueError(
                 f"Platform {platform!r} not in lockfile. "
@@ -385,5 +379,5 @@ class CondaLockV1Loader(EnvironmentSpecBase):
         return conda_lock_v1_to_conda_env(
             self._model,
             platform=platform,
-            fetch=False,
+            fetch=not export,
         )
