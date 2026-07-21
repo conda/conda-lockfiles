@@ -86,7 +86,7 @@ def test_records_from_wheel_url_without_fetch_preserves_distribution_name() -> N
     (record,) = records_from_conda_urls(
         {
             url: {
-                "build": "pypi_0",
+                "build": "py3_none_any_0",
                 "channel": "conda-pypi",
                 "md5": "0123456789abcdef0123456789abcdef",
                 "sha256": "a" * 64,
@@ -98,7 +98,7 @@ def test_records_from_wheel_url_without_fetch_preserves_distribution_name() -> N
 
     assert record.name == "typing_extensions"
     assert record.version == "4.12.2"
-    assert record.build == "pypi_0"
+    assert record.build == "py3_none_any_0"
     assert record.build_number == 0
     assert record.channel.canonical_name == "conda-pypi"
     assert record.subdir == "noarch"

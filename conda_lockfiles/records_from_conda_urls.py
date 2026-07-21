@@ -13,7 +13,7 @@ from conda.exceptions import (
 )
 from conda.models.match_spec import MatchSpec
 from conda.models.records import PackageRecord
-from packaging.utils import parse_wheel_filename
+from installer.utils import parse_wheel_filename
 
 if TYPE_CHECKING:
     from typing import Any
@@ -82,11 +82,11 @@ def records_from_conda_urls(
                 }
                 filename = unquote(urlsplit(url).path.rsplit("/", 1)[-1])
                 if filename.endswith(".whl"):
-                    _, version, _, _ = parse_wheel_filename(filename)
+                    wheel = parse_wheel_filename(filename)
                     fields.update(
                         fn=filename,
-                        name=filename.partition("-")[0],
-                        version=str(version),
+                        name=wheel.distribution,
+                        version=wheel.version,
                     )
                 records.append(
                     PackageRecord(
