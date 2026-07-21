@@ -1,0 +1,3 @@
+### Bug fixes
+
+* Replace deprecated conda YAML serialization helpers to avoid pending deprecation warnings.

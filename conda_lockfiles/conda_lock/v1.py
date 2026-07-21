@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal  # noqa: TCH003
 
 from conda.base.context import context
-from conda.common.serialize import yaml_safe_dump
+from conda.common.serialize import yaml
 from conda.exceptions import CondaValueError
 from conda.models.channel import Channel
 from conda.models.environment import Environment, EnvironmentConfig
@@ -297,7 +297,7 @@ def multiplatform_export(envs: Iterable[Environment]) -> str:
     lockfile = conda_lock_v1_from_conda_envs(envs)
     try:
         # Exclude None values from serialization
-        return yaml_safe_dump(lockfile.model_dump(exclude_none=True, mode="python"))
+        return yaml.dumps(lockfile.model_dump(exclude_none=True, mode="python"))
     except YAMLError as e:
         raise CondaValueError(
             f"Failed to export environment to conda-lock v1 format: {e}"

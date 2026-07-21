@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Annotated  # noqa: TCH003
 
 from conda.base.context import context
 from conda.common.io import dashlist
-from conda.common.serialize import yaml_safe_dump
+from conda.common.serialize import yaml
 from conda.exceptions import CondaValueError
 from conda.models.channel import Channel
 from conda.models.environment import Environment, EnvironmentConfig
@@ -312,7 +312,7 @@ def multiplatform_export(envs: Iterable[Environment]) -> str:
     """Export Environment to rattler lock format."""
     lockfile = rattler_lock_v6_from_conda_envs(envs)
     try:
-        return yaml_safe_dump(
+        return yaml.dumps(
             lockfile.model_dump(
                 exclude_none=True,
                 mode="python",
