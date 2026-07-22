@@ -15,7 +15,6 @@ from conda.models.environment import (
     EnvironmentConfig,
 )
 from conda.models.match_spec import MatchSpec
-from conda.plugins.types import EnvironmentSpecBase
 from pydantic import BaseModel, Field, ValidationError
 from ruamel.yaml import YAMLError
 from ruamel.yaml.parser import ParserError
@@ -23,6 +22,7 @@ from ruamel.yaml.parser import ParserError
 from .. import CONDA_PYPI_CHANNEL_NAME, PYTHONHOSTED_URL_PREFIX, __version__
 from ..exceptions import CondaLockfilesParserError, CondaLockfilesValidationError
 from ..load_yaml import load_yaml
+from ..lockfile import LockfileSpecBase
 from ..records_from_conda_urls import _records_for_export, records_from_conda_urls
 from ..validate_urls import validate_urls
 
@@ -320,7 +320,7 @@ def multiplatform_export(envs: Iterable[Environment]) -> str:
         ) from e
 
 
-class CondaLockV1Loader(EnvironmentSpecBase):
+class CondaLockV1Loader(LockfileSpecBase):
     detection_supported: ClassVar[bool] = True
 
     def __init__(self, path: PathType):
@@ -383,26 +383,15 @@ class CondaLockV1Loader(EnvironmentSpecBase):
             )
         return conda_lock_v1_to_conda_env(self._model, platform=platform)
 
-    def transcode(
+    def _environments_for_transcode(
         self,
-        platforms: Iterable[str],
-        *,
-        format_name: str,
-    ) -> str:
-        """Render selected platforms without fetching package artifacts."""
-        requested = tuple(platforms)
-        if not requested:
-            raise CondaValueError("At least one platform is required for transcoding.")
-        missing = sorted(set(requested) - set(self.available_platforms))
-        if missing:
-            raise CondaValueError(
-                f"Platform(s) not in lockfile: {', '.join(missing)}. "
-                f"Available platforms: {', '.join(self.available_platforms)}"
-            )
+        platforms: tuple[str, ...],
+        _target_format: str,
+    ) -> list[Environment]:
         unsupported = [
             package
             for package in self._model.package
-            if package.platform in requested
+            if package.platform in platforms
             and (
                 package.manager != "conda"
                 or package.category != "main"
@@ -414,18 +403,7 @@ class CondaLockV1Loader(EnvironmentSpecBase):
                 "Cannot transcode pip, optional, or non-main conda-lock-v1 "
                 "packages without losing lockfile data."
             )
-        if format_name in (FORMAT, *ALIASES):
-            export = multiplatform_export
-        else:
-            from ..rattler_lock import v6 as rattler_lock_v6
-
-            if format_name not in (rattler_lock_v6.FORMAT, *rattler_lock_v6.ALIASES):
-                raise CondaValueError(
-                    f"Unsupported lockfile transcode format: {format_name}"
-                )
-            export = rattler_lock_v6.multiplatform_export
-        envs = [
+        return [
             _conda_lock_v1_to_conda_env(self._model, platform, fetch=False)
-            for platform in requested
+            for platform in platforms
         ]
-        return export(envs)

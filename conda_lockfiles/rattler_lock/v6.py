@@ -13,7 +13,6 @@ from conda.models.environment import (
     Environment,
     EnvironmentConfig,
 )
-from conda.plugins.types import EnvironmentSpecBase
 from pydantic import (
     BaseModel,
     Field,
@@ -27,6 +26,7 @@ from ruamel.yaml.parser import ParserError
 from .. import CONDA_PYPI_CHANNEL_NAME, PYTHONHOSTED_URL_PREFIX
 from ..exceptions import CondaLockfilesParserError, CondaLockfilesValidationError
 from ..load_yaml import load_yaml
+from ..lockfile import LockfileSpecBase
 from ..records_from_conda_urls import _records_for_export, records_from_conda_urls
 from ..validate_urls import validate_urls
 
@@ -362,7 +362,7 @@ def multiplatform_export(envs: Iterable[Environment]) -> str:
         ) from e
 
 
-class RattlerLockV6Loader(EnvironmentSpecBase):
+class RattlerLockV6Loader(LockfileSpecBase):
     detection_supported: ClassVar[bool] = True
 
     def __init__(self, path: PathType):
@@ -425,22 +425,11 @@ class RattlerLockV6Loader(EnvironmentSpecBase):
             )
         return rattler_lock_v6_to_conda_env(self._model, platform=platform)
 
-    def transcode(
+    def _environments_for_transcode(
         self,
-        platforms: Iterable[str],
-        *,
-        format_name: str,
-    ) -> str:
-        """Render selected platforms without fetching package artifacts."""
-        requested = tuple(platforms)
-        if not requested:
-            raise CondaValueError("At least one platform is required for transcoding.")
-        missing = sorted(set(requested) - set(self.available_platforms))
-        if missing:
-            raise CondaValueError(
-                f"Platform(s) not in lockfile: {', '.join(missing)}. "
-                f"Available platforms: {', '.join(self.available_platforms)}"
-            )
+        platforms: tuple[str, ...],
+        target_format: str,
+    ) -> list[Environment]:
         if set(self._model.environments) != {"default"}:
             raise CondaValueError(
                 "Cannot transcode a rattler-lock-v6 file with multiple environments "
@@ -448,7 +437,7 @@ class RattlerLockV6Loader(EnvironmentSpecBase):
             )
         references = [
             reference
-            for platform in requested
+            for platform in platforms
             for reference in self._model.environments["default"].packages[platform]
         ]
         if any(reference.pypi for reference in references):
@@ -456,33 +445,23 @@ class RattlerLockV6Loader(EnvironmentSpecBase):
                 "Cannot transcode rattler-lock-v6 PyPI packages without losing "
                 "lockfile data."
             )
-        if format_name in (FORMAT, *ALIASES):
-            export = multiplatform_export
-            to_conda_lock = False
-        else:
+        if target_format != FORMAT:
             from ..conda_lock import v1 as conda_lock_v1
 
-            if format_name not in (conda_lock_v1.FORMAT, *conda_lock_v1.ALIASES):
+            if target_format == conda_lock_v1.FORMAT and any(
+                reference.conda and reference.url.startswith(PYTHONHOSTED_URL_PREFIX)
+                for reference in references
+            ):
                 raise CondaValueError(
-                    f"Unsupported lockfile transcode format: {format_name}"
+                    "Cannot transcode conda-pypi wheel records from rattler-lock-v6 "
+                    "to conda-lock-v1 without package metadata."
                 )
-            export = conda_lock_v1.multiplatform_export
-            to_conda_lock = True
-        if to_conda_lock and any(
-            reference.conda and reference.url.startswith(PYTHONHOSTED_URL_PREFIX)
-            for reference in references
-        ):
-            raise CondaValueError(
-                "Cannot transcode conda-pypi wheel records from rattler-lock-v6 "
-                "to conda-lock-v1 without package metadata."
-            )
-        envs = [
+        return [
             _rattler_lock_v6_to_conda_env(
                 self._model,
                 "default",
                 platform,
                 fetch=False,
             )
-            for platform in requested
+            for platform in platforms
         ]
-        return export(envs)
