@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import pytest
 from conda.base.context import reset_context
-from conda.exceptions import DryRunExit
+from conda.exceptions import CondaValueError, DryRunExit
 
-from conda_lockfiles.records_from_conda_urls import records_from_conda_urls
+from conda_lockfiles.records_from_conda_urls import (
+    _records_for_export,
+    records_from_conda_urls,
+)
 
 
 def test_records_from_urls_and_metadata() -> None:
@@ -30,6 +33,54 @@ def test_records_from_urls_and_metadata() -> None:
     assert record.license == license
     # only known after downloading
     assert record.size == 122_968
+
+
+def test_export_records_from_wheel_url_preserve_conda_pypi_identity() -> None:
+    url = (
+        "https://files.pythonhosted.org/packages/ab/cd/"
+        "typing_extensions-4.12.2-py3-none-any.whl"
+    )
+
+    (record,) = _records_for_export(
+        {
+            url: {
+                "channel": "conda-pypi",
+                "md5": "0123456789abcdef0123456789abcdef",
+                "sha256": "a" * 64,
+            }
+        },
+    )
+
+    assert record.name == "typing_extensions"
+    assert record.version == "4.12.2"
+    assert record.build == "py3_none_any_0"
+    assert record.build_number == 0
+    assert record.channel.canonical_name == "conda-pypi"
+    assert record.subdir == "noarch"
+    assert record.fn == "typing_extensions-4.12.2-py3-none-any.whl"
+    assert record.url == url
+    assert record.md5 == "0123456789abcdef0123456789abcdef"
+    assert record.sha256 == "a" * 64
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.com/noarch/bad.conda",
+        "https://files.pythonhosted.org/packages/ab/cd/bad.whl",
+        (
+            "https://files.pythonhosted.org/packages/ab/cd/"
+            "example-1.0-cp313-cp313-manylinux_x86_64.whl"
+        ),
+    ],
+    ids=["conda-archive", "wheel-filename", "platform-wheel"],
+)
+def test_export_records_reject_invalid_or_unsupported_url(url: str) -> None:
+    with pytest.raises(
+        CondaValueError,
+        match="Unable to reconstruct a package record from a lockfile URL",
+    ):
+        _records_for_export({url: {}})
 
 
 def test_records_from_conda_urls_dry_run(monkeypatch, capsys):

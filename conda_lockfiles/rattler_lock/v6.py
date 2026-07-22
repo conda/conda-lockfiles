@@ -8,16 +8,26 @@ from conda.common.io import dashlist
 from conda.common.serialize import yaml_safe_dump
 from conda.exceptions import CondaValueError
 from conda.models.channel import Channel
-from conda.models.environment import Environment, EnvironmentConfig
+from conda.models.environment import (
+    EXTERNAL_PACKAGES_PYPI_KEY,
+    Environment,
+    EnvironmentConfig,
+)
 from conda.plugins.types import EnvironmentSpecBase
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from ruamel.yaml import YAMLError
 from ruamel.yaml.parser import ParserError
 
 from .. import CONDA_PYPI_CHANNEL_NAME, PYTHONHOSTED_URL_PREFIX
 from ..exceptions import CondaLockfilesParserError, CondaLockfilesValidationError
 from ..load_yaml import load_yaml
-from ..records_from_conda_urls import records_from_conda_urls
+from ..records_from_conda_urls import _records_for_export, records_from_conda_urls
 from ..validate_urls import validate_urls
 
 if TYPE_CHECKING:
@@ -48,7 +58,7 @@ DEFAULT_FILENAMES: Final = (PIXI_LOCK_FILE,)
 #: managers (as used in the environment)
 PACKAGE_TYPE_MAPPING: Final = {
     # "conda": "conda",  # processed as conda (explicit) packages
-    "pypi": "pypi",
+    "pypi": EXTERNAL_PACKAGES_PYPI_KEY,
 }
 
 
@@ -64,17 +74,12 @@ class RattlerLockV6PackageReference(BaseModel):
     conda: str | None = None
     pypi: str | None = None
 
-    @field_validator("conda", "pypi")
-    @classmethod
-    def check_at_least_one(cls, value, info):
-        """Ensure at least one package manager is specified."""
-        if not value and not info.data.get("conda") and not info.data.get("pypi"):
-            raise ValueError("Either 'conda' or 'pypi' must be specified")
-
-        if value and info.data.get("conda") and info.data.get("pypi"):
-            raise ValueError("Either 'conda' or 'pypi' must be specified, not both")
-
-        return value
+    @model_validator(mode="after")
+    def check_package_manager(self):
+        """Ensure exactly one package manager is specified."""
+        if bool(self.conda) == bool(self.pypi):
+            raise ValueError("Exactly one of 'conda' or 'pypi' must be specified")
+        return self
 
     # NOTE: properties are excluded from the model_dump() output
     @property
@@ -147,6 +152,23 @@ class RattlerLockV6(BaseModel):
         if "default" not in value:
             raise ValueError("Lock file must contain a 'default' environment")
         return value
+
+    @model_validator(mode="after")
+    def check_package_references(self):
+        """Ensure package references have corresponding typed metadata."""
+        package_keys = {
+            (package.package_type, package.url) for package in self.packages
+        }
+        for name, environment in self.environments.items():
+            for platform, references in environment.packages.items():
+                for reference in references:
+                    if (reference.package_type, reference.url) not in package_keys:
+                        raise ValueError(
+                            f"{reference.package_type} package {reference.url!r} is "
+                            f"referenced by environment {name!r} for platform "
+                            f"{platform!r} but missing from the packages list."
+                        )
+        return self
 
 
 def _record_to_package(record: PackageRecord) -> RattlerLockV6Package:
@@ -255,6 +277,16 @@ def rattler_lock_v6_to_conda_env(
     :param platform: Platform to extract packages for
     :return: Conda Environment object
     """
+    return _rattler_lock_v6_to_conda_env(lockfile, name, platform, fetch=True)
+
+
+def _rattler_lock_v6_to_conda_env(
+    lockfile: RattlerLockV6,
+    name: str,
+    platform: str,
+    *,
+    fetch: bool,
+) -> Environment:
     # validate `name` and `platform` arguments
     if not (environment := lockfile.environments.get(name, None)):
         raise ValueError(
@@ -278,10 +310,13 @@ def rattler_lock_v6_to_conda_env(
         ),
         None,
     )
+    packages_by_key = {
+        (package.package_type, package.url): package for package in lockfile.packages
+    }
     for ref in environment.packages.get(platform, ()):
         # Group by manager
         if ref.conda:
-            pkg = next(pkg for pkg in lockfile.packages if pkg.url == ref.url)
+            pkg = packages_by_key[(ref.package_type, ref.url)]
             overrides = pkg.model_dump(
                 exclude={"conda", "pypi"},
                 exclude_none=True,
@@ -297,13 +332,16 @@ def rattler_lock_v6_to_conda_env(
                 raise ValueError(f"Unknown package type: {ref.package_type}")
             external_packages.setdefault(key, []).append(ref.url)
 
+    records = (
+        records_from_conda_urls(explicit_packages, dry_run=context.dry_run)
+        if fetch
+        else _records_for_export(explicit_packages)
+    )
     return Environment(
         prefix=context.target_prefix,
         platform=platform,
         config=config,
-        explicit_packages=records_from_conda_urls(
-            explicit_packages, dry_run=context.dry_run
-        ),
+        explicit_packages=records,
         external_packages=external_packages,
     )
 
@@ -386,3 +424,65 @@ class RattlerLockV6Loader(EnvironmentSpecBase):
                 f"Available platforms: {', '.join(self.available_platforms)}"
             )
         return rattler_lock_v6_to_conda_env(self._model, platform=platform)
+
+    def transcode(
+        self,
+        platforms: Iterable[str],
+        *,
+        format_name: str,
+    ) -> str:
+        """Render selected platforms without fetching package artifacts."""
+        requested = tuple(platforms)
+        if not requested:
+            raise CondaValueError("At least one platform is required for transcoding.")
+        missing = sorted(set(requested) - set(self.available_platforms))
+        if missing:
+            raise CondaValueError(
+                f"Platform(s) not in lockfile: {', '.join(missing)}. "
+                f"Available platforms: {', '.join(self.available_platforms)}"
+            )
+        if set(self._model.environments) != {"default"}:
+            raise CondaValueError(
+                "Cannot transcode a rattler-lock-v6 file with multiple environments "
+                "without losing lockfile data."
+            )
+        references = [
+            reference
+            for platform in requested
+            for reference in self._model.environments["default"].packages[platform]
+        ]
+        if any(reference.pypi for reference in references):
+            raise CondaValueError(
+                "Cannot transcode rattler-lock-v6 PyPI packages without losing "
+                "lockfile data."
+            )
+        if format_name in (FORMAT, *ALIASES):
+            export = multiplatform_export
+            to_conda_lock = False
+        else:
+            from ..conda_lock import v1 as conda_lock_v1
+
+            if format_name not in (conda_lock_v1.FORMAT, *conda_lock_v1.ALIASES):
+                raise CondaValueError(
+                    f"Unsupported lockfile transcode format: {format_name}"
+                )
+            export = conda_lock_v1.multiplatform_export
+            to_conda_lock = True
+        if to_conda_lock and any(
+            reference.conda and reference.url.startswith(PYTHONHOSTED_URL_PREFIX)
+            for reference in references
+        ):
+            raise CondaValueError(
+                "Cannot transcode conda-pypi wheel records from rattler-lock-v6 "
+                "to conda-lock-v1 without package metadata."
+            )
+        envs = [
+            _rattler_lock_v6_to_conda_env(
+                self._model,
+                "default",
+                platform,
+                fetch=False,
+            )
+            for platform in requested
+        ]
+        return export(envs)

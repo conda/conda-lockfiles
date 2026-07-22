@@ -22,7 +22,8 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-  # "conda >=25.9.0",
+  # "conda >=26.3.0",
+  "installer>=1.0",
   "ruamel.yaml",
   "pydantic>=2.12.5,<3"
 ]
@@ -41,6 +42,7 @@ platforms = ["linux-64", "osx-64", "osx-arm64", "win-64", "linux-aarch64"]
 [tool.pixi.dependencies]
 python = ">=3.10"
 conda = ">=26.3.0"
+python-installer = ">=1.0"
 "ruamel.yaml" = "*"
 pydantic = ">=2.12.5,<3"
 
