@@ -245,7 +245,9 @@ def test_env_for(loader, platform) -> None:
     "target_format,expected_key",
     [
         pytest.param(conda_lock_v1.FORMAT, "package:", id="conda-lock-v1"),
+        pytest.param(conda_lock_v1.ALIASES[0], "package:", id="conda-lock-alias"),
         pytest.param(rattler_lock_v6.FORMAT, "environments:", id="rattler-lock-v6"),
+        pytest.param(rattler_lock_v6.ALIASES[0], "environments:", id="pixi-alias"),
     ],
 )
 def test_transcode_does_not_fetch(
@@ -444,7 +446,16 @@ def test_rattler_package_reference_requires_one_manager(values) -> None:
         rattler_lock_v6.RattlerLockV6PackageReference(**values)
 
 
-def test_rattler_lock_v6_rejects_unrecoverable_conda_pypi_identity() -> None:
+@pytest.mark.parametrize(
+    "target_format",
+    [
+        pytest.param(conda_lock_v1.FORMAT, id="canonical"),
+        pytest.param(conda_lock_v1.ALIASES[0], id="alias"),
+    ],
+)
+def test_rattler_lock_v6_rejects_unrecoverable_conda_pypi_identity(
+    target_format,
+) -> None:
     lockfile = rattler_lock_v6.RattlerLockV6(
         environments={
             "default": rattler_lock_v6.RattlerLockV6Environment(
@@ -463,7 +474,7 @@ def test_rattler_lock_v6_rejects_unrecoverable_conda_pypi_identity() -> None:
     loader = rattler_lock_v6.RattlerLockV6Loader("unused")
     loader._model = lockfile
     with pytest.raises(CondaValueError, match="without package metadata"):
-        loader.transcode(("osx-arm64",), format_name=conda_lock_v1.FORMAT)
+        loader.transcode(("osx-arm64",), format_name=target_format)
 
 
 @pytest.mark.parametrize(
