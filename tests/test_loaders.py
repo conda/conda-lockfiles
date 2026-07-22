@@ -6,6 +6,7 @@ import pytest
 from conda.base.context import context
 from conda.exceptions import CondaValueError
 from conda.plugins.types import EnvironmentFormat
+from pydantic import ValidationError
 
 if TYPE_CHECKING:
     from conda.plugins.manager import CondaPluginManager
@@ -240,33 +241,165 @@ def test_env_for(loader, platform) -> None:
     assert env.explicit_packages
 
 
-def test_env_for_export_does_not_fetch(loader, mocker: MockerFixture) -> None:
+@pytest.mark.parametrize(
+    "target_format,expected_key",
+    [
+        pytest.param(conda_lock_v1.FORMAT, "package:", id="conda-lock-v1"),
+        pytest.param(rattler_lock_v6.FORMAT, "environments:", id="rattler-lock-v6"),
+    ],
+)
+def test_transcode_does_not_fetch(
+    loader,
+    mocker: MockerFixture,
+    target_format: str,
+    expected_key: str,
+) -> None:
     execute = mocker.patch(
         "conda.core.package_cache_data.ProgressiveFetchExtract.execute",
         side_effect=AssertionError("package fetch attempted"),
     )
-
-    env = loader.env_for(context.subdir, export=True)
+    query_all = mocker.patch(
+        "conda.core.package_cache_data.PackageCacheData.query_all",
+        side_effect=AssertionError("package cache read attempted"),
+    )
+    content = loader.transcode((context.subdir,), format_name=target_format)
 
     execute.assert_not_called()
-    assert env.platform == context.subdir
-    assert env.explicit_packages
+    query_all.assert_not_called()
+    assert expected_key in content
 
 
-@pytest.mark.parametrize("export", [False, True], ids=["install", "export"])
-def test_env_for_unknown_platform_raises(loader, export: bool) -> None:
+def test_env_for_unknown_platform_raises(loader) -> None:
     with pytest.raises(ValueError, match="not in lockfile"):
-        loader.env_for("not-a-real-platform", export=export)
+        loader.env_for("not-a-real-platform")
 
 
-def test_env_unchanged(loader) -> None:
-    """Regression guard: env still returns a single Environment for context.subdir."""
-    env = loader.env
-    assert env.platform == context.subdir
-    assert env.explicit_packages
+@pytest.mark.parametrize(
+    "platforms,error",
+    [
+        pytest.param((), "At least one platform", id="empty"),
+        pytest.param(("not-a-real-platform",), "not in lockfile", id="unknown"),
+    ],
+)
+def test_transcode_rejects_invalid_platforms(loader, platforms, error) -> None:
+    with pytest.raises(CondaValueError, match=error):
+        loader.transcode(platforms, format_name=conda_lock_v1.FORMAT)
 
 
-def test_rattler_lock_v6_rejects_missing_package_metadata() -> None:
+def test_transcode_rejects_unsupported_format(loader) -> None:
+    with pytest.raises(CondaValueError, match="Unsupported lockfile transcode format"):
+        loader.transcode((context.subdir,), format_name="other-lockfile")
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param({"manager": "pip"}, id="pip"),
+        pytest.param({"category": "dev"}, id="non-main"),
+        pytest.param({"optional": True}, id="optional"),
+    ],
+)
+def test_conda_lock_v1_transcode_rejects_unrepresented_packages(overrides) -> None:
+    package = {
+        "name": "example",
+        "version": "1.0",
+        "manager": "conda",
+        "platform": "linux-64",
+        "url": "https://example.com/linux-64/example-1.0-0.conda",
+        **overrides,
+    }
+    lockfile = conda_lock_v1.CondaLockV1(
+        metadata=conda_lock_v1.CondaLockV1Metadata(
+            channels=[],
+            platforms=["linux-64"],
+        ),
+        package=[conda_lock_v1.CondaLockV1Package(**package)],
+    )
+    loader = conda_lock_v1.CondaLockV1Loader("unused")
+    loader._model = lockfile
+
+    with pytest.raises(CondaValueError, match="without losing lockfile data"):
+        loader.transcode(("linux-64",), format_name=rattler_lock_v6.FORMAT)
+
+
+def test_rattler_lock_v6_transcode_rejects_multiple_environments() -> None:
+    url = "https://example.com/linux-64/example-1.0-0.conda"
+    environment = rattler_lock_v6.RattlerLockV6Environment(
+        channels=[],
+        packages={
+            "linux-64": [rattler_lock_v6.RattlerLockV6PackageReference(conda=url)]
+        },
+    )
+    lockfile = rattler_lock_v6.RattlerLockV6(
+        environments={"default": environment, "dev": environment},
+        packages=[rattler_lock_v6.RattlerLockV6Package(conda=url)],
+    )
+    loader = rattler_lock_v6.RattlerLockV6Loader("unused")
+    loader._model = lockfile
+
+    with pytest.raises(CondaValueError, match="multiple environments"):
+        loader.transcode(("linux-64",), format_name=conda_lock_v1.FORMAT)
+
+
+def test_rattler_lock_v6_transcode_rejects_pypi_packages() -> None:
+    url = "https://files.pythonhosted.org/packages/example-1.0-py3-none-any.whl"
+    lockfile = rattler_lock_v6.RattlerLockV6(
+        environments={
+            "default": rattler_lock_v6.RattlerLockV6Environment(
+                channels=[],
+                packages={
+                    "linux-64": [
+                        rattler_lock_v6.RattlerLockV6PackageReference(pypi=url)
+                    ]
+                },
+            )
+        },
+        packages=[rattler_lock_v6.RattlerLockV6Package(pypi=url)],
+    )
+    loader = rattler_lock_v6.RattlerLockV6Loader("unused")
+    loader._model = lockfile
+
+    with pytest.raises(CondaValueError, match="PyPI packages"):
+        loader.transcode(("linux-64",), format_name=conda_lock_v1.FORMAT)
+
+
+@pytest.mark.parametrize(
+    ("reference_type", "package_type"),
+    [
+        pytest.param("conda", None, id="missing-conda"),
+        pytest.param("pypi", None, id="missing-pypi"),
+        pytest.param("conda", "pypi", id="manager-mismatch"),
+    ],
+)
+def test_rattler_lock_v6_rejects_invalid_package_reference(
+    reference_type,
+    package_type,
+) -> None:
+    url = "https://example.com/linux-64/example-1.0-0.conda"
+    packages = (
+        []
+        if package_type is None
+        else [rattler_lock_v6.RattlerLockV6Package(**{package_type: url})]
+    )
+    with pytest.raises(ValidationError, match="missing from the packages list"):
+        rattler_lock_v6.RattlerLockV6(
+            environments={
+                "default": rattler_lock_v6.RattlerLockV6Environment(
+                    channels=[],
+                    packages={
+                        "linux-64": [
+                            rattler_lock_v6.RattlerLockV6PackageReference(
+                                **{reference_type: url}
+                            )
+                        ]
+                    },
+                )
+            },
+            packages=packages,
+        )
+
+
+def test_rattler_lock_v6_uses_metadata_with_matching_manager() -> None:
     url = "https://example.com/linux-64/example-1.0-0.conda"
     lockfile = rattler_lock_v6.RattlerLockV6(
         environments={
@@ -279,15 +412,58 @@ def test_rattler_lock_v6_rejects_missing_package_metadata() -> None:
                 },
             )
         },
-        packages=[],
+        packages=[
+            rattler_lock_v6.RattlerLockV6Package(
+                conda=url,
+                depends=["conda-dependency"],
+            ),
+            rattler_lock_v6.RattlerLockV6Package(
+                pypi=url,
+                depends=["pypi-dependency"],
+            ),
+        ],
     )
+    loader = rattler_lock_v6.RattlerLockV6Loader("unused")
+    loader._model = lockfile
 
-    with pytest.raises(CondaValueError, match="missing from the packages list"):
-        rattler_lock_v6.rattler_lock_v6_to_conda_env(
-            lockfile,
-            platform="linux-64",
-            fetch=False,
-        )
+    content = loader.transcode(("linux-64",), format_name=rattler_lock_v6.FORMAT)
+
+    assert "conda-dependency" in content
+    assert "pypi-dependency" not in content
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        pytest.param({}, id="neither"),
+        pytest.param({"conda": "conda-url", "pypi": "pypi-url"}, id="both"),
+    ],
+)
+def test_rattler_package_reference_requires_one_manager(values) -> None:
+    with pytest.raises(ValidationError, match="Exactly one"):
+        rattler_lock_v6.RattlerLockV6PackageReference(**values)
+
+
+def test_rattler_lock_v6_rejects_unrecoverable_conda_pypi_identity() -> None:
+    lockfile = rattler_lock_v6.RattlerLockV6(
+        environments={
+            "default": rattler_lock_v6.RattlerLockV6Environment(
+                channels=[rattler_lock_v6.RattlerLockV6Channel(url="conda-pypi")],
+                packages={
+                    "osx-arm64": [
+                        rattler_lock_v6.RattlerLockV6PackageReference(
+                            conda=PYTHONHOSTED_WHEEL_URL
+                        )
+                    ]
+                },
+            )
+        },
+        packages=[rattler_lock_v6.RattlerLockV6Package(conda=PYTHONHOSTED_WHEEL_URL)],
+    )
+    loader = rattler_lock_v6.RattlerLockV6Loader("unused")
+    loader._model = lockfile
+    with pytest.raises(CondaValueError, match="without package metadata"):
+        loader.transcode(("osx-arm64",), format_name=conda_lock_v1.FORMAT)
 
 
 @pytest.mark.parametrize(
@@ -376,11 +552,11 @@ def test_conda_pypi_record_overrides(
     expected_overrides,
     mocker: MockerFixture,
 ) -> None:
-    """Loaders preserve wheel metadata in full and export-only records."""
-    captured_calls = []
+    """Loaders preserve conda-pypi metadata for explicit package records."""
+    captured_metadata = {}
 
     def capture_records(metadata_by_url, **kwargs):
-        captured_calls.append((metadata_by_url, kwargs))
+        captured_metadata.update(metadata_by_url)
         return ()
 
     mocker.patch.object(
@@ -390,13 +566,5 @@ def test_conda_pypi_record_overrides(
     )
 
     load_env(lockfile, platform="osx-arm64")
-    load_env(lockfile, platform="osx-arm64", fetch=False)
 
-    assert captured_calls[0][0][PYTHONHOSTED_WHEEL_URL] == expected_overrides
-    assert captured_calls[0][1]["fetch"] is True
-    assert captured_calls[1][0][PYTHONHOSTED_WHEEL_URL] == {
-        **expected_overrides,
-        "build": "py3_none_any_0",
-        "subdir": "noarch",
-    }
-    assert captured_calls[1][1]["fetch"] is False
+    assert captured_metadata[PYTHONHOSTED_WHEEL_URL] == expected_overrides

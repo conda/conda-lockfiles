@@ -26,83 +26,28 @@ def records_from_conda_urls(
     metadata_by_url: dict[CondaPackageURL, CondaPackageMetadata],
     dry_run: bool = False,
     download_only: bool = context.download_only,
-    *,
-    fetch: bool = True,
 ) -> tuple[PackageRecord, ...]:
     """
     Return PackageRecords for a set of conda package URLs.
 
     Any metadata specified for the url in `metadata_by_url` will be reflected
-    in the resulting PackageRecords. When ``fetch`` is true, fields not specified
-    are filled from the package cache.
-
-    When ``fetch`` is false, package artifacts and cache entries are not read.
-    The metadata-only records use zero for the required ``build_number`` field
-    and are only suitable for transcoding because the supported lockfile
-    exporters do not serialize that field.
+    in the resulting PackageRecords. Fields not specified are filled from the
+    package cache.
 
     """
-    try:
-        fetch_specs = [
-            MatchSpec(
-                url,
-                **{key: metadata[key] for key in ("md5", "sha256") if key in metadata},
-            )
-            for url, metadata in metadata_by_url.items()
-        ]
-    except (TypeError, ValueError) as e:
-        if not fetch:
-            raise CondaValueError(
-                "Unable to reconstruct a package record from a lockfile URL."
-            ) from e
-        raise
+    fetch_specs = [
+        MatchSpec(
+            url,
+            **{key: metadata[key] for key in ("md5", "sha256") if key in metadata},
+        )
+        for url, metadata in metadata_by_url.items()
+    ]
 
-    if dry_run and fetch:
+    if dry_run:
         print("\nDry run would have fetched the following package records:")
         print(dashlist(fetch_specs))
 
         raise DryRunExit()
-
-    if not fetch:
-        records: list[PackageRecord] = []
-        for fetch_spec, (url, metadata) in zip(
-            fetch_specs, metadata_by_url.items(), strict=True
-        ):
-            try:
-                fields = {
-                    field: fetch_spec.get_exact_value(field)
-                    for field in (
-                        "channel",
-                        "subdir",
-                        "name",
-                        "version",
-                        "build",
-                        "fn",
-                    )
-                }
-                filename = unquote(urlsplit(url).path.rsplit("/", 1)[-1])
-                if filename.endswith(".whl"):
-                    wheel = parse_wheel_filename(filename)
-                    fields.update(
-                        fn=filename,
-                        name=wheel.distribution,
-                        version=wheel.version,
-                    )
-                records.append(
-                    PackageRecord(
-                        **{
-                            **fields,
-                            "build_number": 0,
-                            **metadata,
-                            "url": url,
-                        }
-                    )
-                )
-            except (TypeError, ValueError) as e:
-                raise CondaValueError(
-                    "Unable to reconstruct a package record from a lockfile URL."
-                ) from e
-        return tuple(records)
 
     pfe = ProgressiveFetchExtract(fetch_specs)
     pfe.execute()
@@ -125,4 +70,60 @@ def records_from_conda_urls(
                 **overrides,
             )
         )
+    return tuple(records)
+
+
+def _records_for_export(
+    metadata_by_url: dict[CondaPackageURL, CondaPackageMetadata],
+) -> tuple[PackageRecord, ...]:
+    records: list[PackageRecord] = []
+    for url, metadata in metadata_by_url.items():
+        try:
+            filename = unquote(urlsplit(url).path.rsplit("/", 1)[-1])
+            if filename.endswith(".whl"):
+                wheel = parse_wheel_filename(filename)
+                if not wheel.tag.endswith("-none-any"):
+                    raise ValueError("conda-pypi only supports pure Python wheels")
+                fields = {
+                    "build": "py3_none_any_0",
+                    "channel": metadata.get("channel"),
+                    "fn": filename,
+                    "name": wheel.distribution,
+                    "subdir": "noarch",
+                    "version": wheel.version,
+                }
+            else:
+                spec = MatchSpec(
+                    url,
+                    **{
+                        key: metadata[key]
+                        for key in ("md5", "sha256")
+                        if key in metadata
+                    },
+                )
+                fields = {
+                    field: spec.get_exact_value(field)
+                    for field in (
+                        "channel",
+                        "subdir",
+                        "name",
+                        "version",
+                        "build",
+                        "fn",
+                    )
+                }
+            records.append(
+                PackageRecord(
+                    **{
+                        **fields,
+                        "build_number": 0,
+                        **metadata,
+                        "url": url,
+                    }
+                )
+            )
+        except (TypeError, ValueError) as e:
+            raise CondaValueError(
+                "Unable to reconstruct a package record from a lockfile URL."
+            ) from e
     return tuple(records)
