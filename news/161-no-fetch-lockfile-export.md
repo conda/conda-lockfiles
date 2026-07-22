@@ -1,7 +1,9 @@
 ### Enhancements
 
-* Add an export mode to `env_for()` so callers can export lockfiles without downloading package artifacts.
+* Add atomic lockfile transcoding without downloading package artifacts, and reject source data that cannot be represented without loss. (#161)
 
 ### Bug fixes
 
-* Align the conda package runtime requirement with the EnvironmentFormat API used by the plugin.
+* Validate rattler package references against metadata with the same package-manager type. (#161)
+* Accept the standard `manager: pip` value in conda-lock v1 files. (#161)
+* Align the conda package runtime requirement with the EnvironmentFormat API used by the plugin. (#161)

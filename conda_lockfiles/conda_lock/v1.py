@@ -9,7 +9,11 @@ from conda.base.context import context
 from conda.common.serialize import yaml_safe_dump
 from conda.exceptions import CondaValueError
 from conda.models.channel import Channel
-from conda.models.environment import Environment, EnvironmentConfig
+from conda.models.environment import (
+    EXTERNAL_PACKAGES_PYPI_KEY,
+    Environment,
+    EnvironmentConfig,
+)
 from conda.models.match_spec import MatchSpec
 from conda.plugins.types import EnvironmentSpecBase
 from pydantic import BaseModel, Field, ValidationError
@@ -19,7 +23,7 @@ from ruamel.yaml.parser import ParserError
 from .. import CONDA_PYPI_CHANNEL_NAME, PYTHONHOSTED_URL_PREFIX, __version__
 from ..exceptions import CondaLockfilesParserError, CondaLockfilesValidationError
 from ..load_yaml import load_yaml
-from ..records_from_conda_urls import records_from_conda_urls
+from ..records_from_conda_urls import _records_for_export, records_from_conda_urls
 from ..validate_urls import validate_urls
 
 if TYPE_CHECKING:
@@ -51,7 +55,7 @@ TIMESTAMP: Final = "%Y-%m-%dT%H:%M:%SZ"
 #: managers (as used in the environment)
 PACKAGE_TYPE_MAPPING: Final = {
     # "conda": "conda",  # processed as conda (explicit) packages
-    "pip": "pypi",
+    "pip": EXTERNAL_PACKAGES_PYPI_KEY,
 }
 
 PIP_EXPORT_WARNING: Final = (
@@ -76,7 +80,7 @@ class CondaLockV1Package(BaseModel):
 
     name: str
     version: str
-    manager: Literal["conda", "pypi"]
+    manager: Literal["conda", "pip"]
     platform: str
     dependencies: Annotated[dict[str, str], Field(default_factory=dict)]
     url: str
@@ -216,18 +220,23 @@ def conda_lock_v1_from_conda_envs(envs: Iterable[Environment]) -> CondaLockV1:
 def conda_lock_v1_to_conda_env(
     lockfile: CondaLockV1,
     platform: str = context.subdir,
-    *,
-    fetch: bool = True,
 ) -> Environment:
     """
     Render lockfile as a conda environment.
 
     :param lockfile: CondaLockV1 lockfile model
     :param platform: Platform to extract packages for
-    :param fetch: Fetch complete package records for installation. Environments
-        created with ``fetch=False`` must only be passed to lockfile exporters.
     :return: Conda Environment object
     """
+    return _conda_lock_v1_to_conda_env(lockfile, platform, fetch=True)
+
+
+def _conda_lock_v1_to_conda_env(
+    lockfile: CondaLockV1,
+    platform: str,
+    *,
+    fetch: bool,
+) -> Environment:
     # Validate platform is available
     if platform not in lockfile.metadata.platforms:
         raise ValueError(
@@ -276,8 +285,6 @@ def conda_lock_v1_to_conda_env(
             }
             if conda_pypi_channel and pkg.url.startswith(PYTHONHOSTED_URL_PREFIX):
                 overrides["channel"] = conda_pypi_channel
-                if not fetch:
-                    overrides.update(build="py3_none_any_0", subdir="noarch")
             explicit_packages[pkg.url] = overrides
         else:
             # Map conda-lock v1 package type to conda package type
@@ -287,15 +294,16 @@ def conda_lock_v1_to_conda_env(
                 raise ValueError(f"Unknown package type: {pkg.manager}")
             external_packages.setdefault(key, []).append(pkg.url)
 
+    records = (
+        records_from_conda_urls(explicit_packages, dry_run=context.dry_run)
+        if fetch
+        else _records_for_export(explicit_packages)
+    )
     return Environment(
         prefix=context.target_prefix,
         platform=platform,
         config=config,
-        explicit_packages=records_from_conda_urls(
-            explicit_packages,
-            dry_run=context.dry_run,
-            fetch=fetch,
-        ),
+        explicit_packages=records,
         external_packages=external_packages,
     )
 
@@ -366,18 +374,58 @@ class CondaLockV1Loader(EnvironmentSpecBase):
             self._validate_model()
         return tuple(self._model.metadata.platforms)
 
-    def env_for(self, platform: str, *, export: bool = False) -> Environment:
-        """Return the Environment for a specific platform in the lockfile.
-
-        Export environments are reconstructed without downloading packages.
-        """
+    def env_for(self, platform: str) -> Environment:
+        """Return the Environment for a specific platform in the lockfile."""
         if platform not in self.available_platforms:
             raise ValueError(
                 f"Platform {platform!r} not in lockfile. "
                 f"Available platforms: {', '.join(self.available_platforms)}"
             )
-        return conda_lock_v1_to_conda_env(
-            self._model,
-            platform=platform,
-            fetch=not export,
-        )
+        return conda_lock_v1_to_conda_env(self._model, platform=platform)
+
+    def transcode(
+        self,
+        platforms: Iterable[str],
+        *,
+        format_name: str,
+    ) -> str:
+        """Render selected platforms without fetching package artifacts."""
+        requested = tuple(platforms)
+        if not requested:
+            raise CondaValueError("At least one platform is required for transcoding.")
+        missing = sorted(set(requested) - set(self.available_platforms))
+        if missing:
+            raise CondaValueError(
+                f"Platform(s) not in lockfile: {', '.join(missing)}. "
+                f"Available platforms: {', '.join(self.available_platforms)}"
+            )
+        unsupported = [
+            package
+            for package in self._model.package
+            if package.platform in requested
+            and (
+                package.manager != "conda"
+                or package.category != "main"
+                or package.optional
+            )
+        ]
+        if unsupported:
+            raise CondaValueError(
+                "Cannot transcode pip, optional, or non-main conda-lock-v1 "
+                "packages without losing lockfile data."
+            )
+        if format_name in (FORMAT, *ALIASES):
+            export = multiplatform_export
+        else:
+            from ..rattler_lock import v6 as rattler_lock_v6
+
+            if format_name not in (rattler_lock_v6.FORMAT, *rattler_lock_v6.ALIASES):
+                raise CondaValueError(
+                    f"Unsupported lockfile transcode format: {format_name}"
+                )
+            export = rattler_lock_v6.multiplatform_export
+        envs = [
+            _conda_lock_v1_to_conda_env(self._model, platform, fetch=False)
+            for platform in requested
+        ]
+        return export(envs)
