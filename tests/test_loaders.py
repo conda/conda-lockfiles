@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 from conda.base.context import context
+from conda.common.serialize import yaml
+from conda.core.package_cache_data import PackageCacheData, ProgressiveFetchExtract
 from conda.exceptions import CondaValueError
 from conda.plugins.types import EnvironmentFormat
 from pydantic import ValidationError
@@ -269,6 +271,45 @@ def test_transcode_does_not_fetch(
     execute.assert_not_called()
     query_all.assert_not_called()
     assert expected_key in content
+
+
+@pytest.mark.parametrize(
+    "build_number", [pytest.param(0, id="zero"), 7, pytest.param(None, id="omitted")]
+)
+def test_rattler_lock_v6_transcode_preserves_build_number(
+    tmp_path, monkeypatch, build_number
+) -> None:
+    url = "https://example.test/channel/linux-64/probe-1.0-h0_0.conda"
+    package = {"conda": url}
+    if build_number is not None:
+        package["build_number"] = build_number
+    data = {
+        "version": 6,
+        "environments": {
+            "default": {
+                "channels": [],
+                "packages": {"linux-64": [{"conda": url}]},
+            }
+        },
+        "packages": [package],
+    }
+    path = tmp_path / "pixi.lock"
+    path.write_text(yaml.dumps(data))
+
+    def reject_package_access(*args, **kwargs):
+        raise AssertionError("Transcoding must not fetch packages or read the cache")
+
+    monkeypatch.setattr(ProgressiveFetchExtract, "execute", reject_package_access)
+    monkeypatch.setattr(PackageCacheData, "query_all", reject_package_access)
+    loader = rattler_lock_v6.RattlerLockV6Loader(path)
+    content = loader.transcode(("linux-64",), format_name=rattler_lock_v6.FORMAT)
+
+    result = yaml.loads(content)
+    assert result["packages"][0]["conda"] == url
+    assert result["packages"][0]["build_number"] == (
+        0 if build_number is None else build_number
+    )
+    assert yaml.loads(path.read_text()) == data
 
 
 def test_env_for_unknown_platform_raises(loader) -> None:

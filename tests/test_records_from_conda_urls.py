@@ -35,26 +35,30 @@ def test_records_from_urls_and_metadata() -> None:
     assert record.size == 122_968
 
 
-def test_export_records_from_wheel_url_preserve_conda_pypi_identity() -> None:
+@pytest.mark.parametrize(
+    "build_number", [pytest.param(0, id="zero"), 7, pytest.param(None, id="omitted")]
+)
+def test_export_records_from_wheel_url_preserve_conda_pypi_identity(
+    build_number,
+) -> None:
     url = (
         "https://files.pythonhosted.org/packages/ab/cd/"
         "typing_extensions-4.12.2-py3-none-any.whl"
     )
 
-    (record,) = _records_for_export(
-        {
-            url: {
-                "channel": "conda-pypi",
-                "md5": "0123456789abcdef0123456789abcdef",
-                "sha256": "a" * 64,
-            }
-        },
-    )
+    metadata = {
+        "channel": "conda-pypi",
+        "md5": "0123456789abcdef0123456789abcdef",
+        "sha256": "a" * 64,
+    }
+    if build_number is not None:
+        metadata["build_number"] = build_number
+    (record,) = _records_for_export({url: metadata})
 
     assert record.name == "typing_extensions"
     assert record.version == "4.12.2"
     assert record.build == "py3_none_any_0"
-    assert record.build_number == 0
+    assert record.build_number == (0 if build_number is None else build_number)
     assert record.channel.canonical_name == "conda-pypi"
     assert record.subdir == "noarch"
     assert record.fn == "typing_extensions-4.12.2-py3-none-any.whl"
