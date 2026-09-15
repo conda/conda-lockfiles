@@ -17,7 +17,7 @@ from conda_lockfiles.rattler_lock.v6 import PIXI_LOCK_FILE, RattlerLockV6Loader
 from .. import (
     INVALID_LOCKFILES_DIR,
     PIXI_DIR,
-    PIXI_METADATA_DIR,
+    PIXI_V6_METADATA_DIR,
     SINGLE_PACKAGE_ENV,
     SINGLE_PACKAGE_NO_URL_ENV,
     compare_rattler_lock_v6,
@@ -28,6 +28,11 @@ if TYPE_CHECKING:
 
     from conda.testing.fixtures import CondaCLIFixture, TmpEnvFixture
     from pytest_mock import MockerFixture
+
+
+PIXI_ALIAS_WARNING = (
+    "'pixi' currently resolves to rattler-lock-v6 and will resolve to rattler-lock-v7"
+)
 
 
 @pytest.mark.parametrize(
@@ -59,13 +64,46 @@ def test_export_to_rattler_lock_v6(
     reference = prefix / PIXI_LOCK_FILE
     lockfile = tmp_path / PIXI_LOCK_FILE
     with pytest.raises(exception) if exception else nullcontext():
-        out, err, rc = conda_cli("export", f"--prefix={prefix}", f"--file={lockfile}")
+        out, err, rc = conda_cli(
+            "export",
+            f"--prefix={prefix}",
+            f"--file={lockfile}",
+            "--format=rattler-lock-v6",
+        )
         assert not out
         assert not err
         assert rc == 0
         assert compare_rattler_lock_v6(lockfile, reference)
 
     # TODO: conda's context is not reset when EnvironmentExportNotSupported is raised?
+    reset_context()
+
+
+def test_export_to_pixi_alias_warns_about_future_flip(
+    mocker: MockerFixture,
+    tmp_path: Path,
+    conda_cli: CondaCLIFixture,
+) -> None:
+    mocker.patch(
+        "conda.base.context.Context.channels",
+        new_callable=mocker.PropertyMock,
+        return_value=("conda-forge",),
+    )
+
+    lockfile = tmp_path / PIXI_LOCK_FILE
+    with pytest.warns(PendingDeprecationWarning, match=PIXI_ALIAS_WARNING):
+        out, err, rc = conda_cli(
+            "export",
+            f"--prefix={SINGLE_PACKAGE_ENV}",
+            f"--file={lockfile}",
+            "--format=pixi",
+        )
+
+    assert not out
+    assert not err
+    assert rc == 0
+    assert compare_rattler_lock_v6(lockfile, SINGLE_PACKAGE_ENV / PIXI_LOCK_FILE)
+
     reset_context()
 
 
@@ -103,6 +141,7 @@ def test_noarch(
             "export",
             f"--prefix={prefix}",
             f"--file={lockfile}",
+            "--format=rattler-lock-v6",
             "--override-platforms",
             *(f"--platform={platform}" for platform in platforms),
         )
@@ -124,7 +163,7 @@ def test_noarch(
     "lockfile,should_raise",
     [
         pytest.param(
-            PIXI_METADATA_DIR / PIXI_LOCK_FILE,
+            PIXI_V6_METADATA_DIR / PIXI_LOCK_FILE,
             False,
             id="valid-lockfile",
         ),
