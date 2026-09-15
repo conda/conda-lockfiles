@@ -76,6 +76,7 @@ def records_from_conda_urls(
 def _records_for_export(
     metadata_by_url: dict[CondaPackageURL, CondaPackageMetadata],
 ) -> tuple[PackageRecord, ...]:
+    """Reconstruct export-only records, defaulting missing build numbers to zero."""
     records: list[PackageRecord] = []
     for url, metadata in metadata_by_url.items():
         try:
