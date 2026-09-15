@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from conda.base.context import context, reset_context
+from conda.common.serialize import yaml
 from conda.core.package_cache_data import PackageCacheData, ProgressiveFetchExtract
 from conda.exceptions import CondaValueError
 from conda.models.environment import Environment, EnvironmentConfig
@@ -179,16 +180,18 @@ def test_can_handle_raises_validation_errors(tmp_path: Path) -> None:
         loader.can_handle()
 
 
-@pytest.mark.parametrize("build_number", [0, 7])
+@pytest.mark.parametrize(
+    "build_number", [pytest.param(0, id="zero"), 7, pytest.param(None, id="omitted")]
+)
 def test_build_number_round_trip_overrides_cached_record(
-    tmp_path: Path, monkeypatch, build_number: int
+    tmp_path: Path, monkeypatch, build_number: int | None
 ) -> None:
     channel = "https://example.test/channel"
     record = PackageRecord(
         name="probe",
         version="1.0",
         build="h0_0",
-        build_number=build_number,
+        build_number=build_number or 0,
         subdir="linux-64",
         channel=channel,
         url=f"{channel}/linux-64/probe-1.0-h0_0.conda",
@@ -199,14 +202,17 @@ def test_build_number_round_trip_overrides_cached_record(
         explicit_packages=[record],
     )
     path = tmp_path / PIXI_LOCK_FILE
-    path.write_text(multiplatform_export([environment]))
-    assert load_yaml(path)["packages"][0]["build_number"] == build_number
+    data = yaml.loads(multiplatform_export([environment]))
+    assert data["packages"][0]["build_number"] == record.build_number
+    if build_number is None:
+        del data["packages"][0]["build_number"]
+    path.write_text(yaml.dumps(data))
 
     cached = PackageRecord.from_objects(record, build_number=99)
     monkeypatch.setattr(ProgressiveFetchExtract, "execute", lambda self: None)
     monkeypatch.setattr(PackageCacheData, "query_all", lambda *args: iter([cached]))
     loaded = RattlerLockV6Loader(path).env_for("linux-64").explicit_packages[0]
-    assert loaded.build_number == build_number
+    assert loaded.build_number == (99 if build_number is None else build_number)
     assert loaded.build == "h0_0"
 
 
