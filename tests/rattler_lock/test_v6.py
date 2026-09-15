@@ -5,14 +5,22 @@ from typing import TYPE_CHECKING
 
 import pytest
 from conda.base.context import context, reset_context
+from conda.core.package_cache_data import PackageCacheData, ProgressiveFetchExtract
 from conda.exceptions import CondaValueError
+from conda.models.environment import Environment, EnvironmentConfig
+from conda.models.records import PackageRecord
 
 from conda_lockfiles.exceptions import (
     CondaLockfilesParserError,
     EnvironmentExportNotSupported,
 )
 from conda_lockfiles.load_yaml import load_yaml
-from conda_lockfiles.rattler_lock.v6 import PIXI_LOCK_FILE, RattlerLockV6Loader
+from conda_lockfiles.rattler_lock.v6 import (
+    PIXI_LOCK_FILE,
+    RattlerLockV6Loader,
+    RattlerLockV6Package,
+    multiplatform_export,
+)
 
 from .. import (
     INVALID_LOCKFILES_DIR,
@@ -169,3 +177,41 @@ def test_can_handle_raises_validation_errors(tmp_path: Path) -> None:
     # Should raise CondaValueError with descriptive message
     with pytest.raises(CondaValueError, match="missing required field 'environments'"):
         loader.can_handle()
+
+
+@pytest.mark.parametrize("build_number", [0, 7])
+def test_build_number_round_trip_overrides_cached_record(
+    tmp_path: Path, monkeypatch, build_number: int
+) -> None:
+    channel = "https://example.test/channel"
+    record = PackageRecord(
+        name="probe",
+        version="1.0",
+        build="h0_0",
+        build_number=build_number,
+        subdir="linux-64",
+        channel=channel,
+        url=f"{channel}/linux-64/probe-1.0-h0_0.conda",
+    )
+    environment = Environment(
+        platform="linux-64",
+        config=EnvironmentConfig(channels=(channel,)),
+        explicit_packages=[record],
+    )
+    path = tmp_path / PIXI_LOCK_FILE
+    path.write_text(multiplatform_export([environment]))
+    assert load_yaml(path)["packages"][0]["build_number"] == build_number
+
+    cached = PackageRecord.from_objects(record, build_number=99)
+    monkeypatch.setattr(ProgressiveFetchExtract, "execute", lambda self: None)
+    monkeypatch.setattr(PackageCacheData, "query_all", lambda *args: iter([cached]))
+    loaded = RattlerLockV6Loader(path).env_for("linux-64").explicit_packages[0]
+    assert loaded.build_number == build_number
+    assert loaded.build == "h0_0"
+
+
+@pytest.mark.parametrize("package_type", ["conda", "pypi"])
+def test_package_without_build_number_keeps_field_absent(package_type: str) -> None:
+    package = RattlerLockV6Package(**{package_type: "https://example.test/package"})
+    assert package.build_number is None
+    assert "build_number" not in package.model_dump(exclude_none=True)

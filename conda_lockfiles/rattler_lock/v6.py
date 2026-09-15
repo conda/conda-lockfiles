@@ -101,6 +101,7 @@ class RattlerLockV6Package(RattlerLockV6PackageReference):
     """Full package definition with metadata in the packages list."""
 
     # Optional metadata fields
+    build_number: int | None = None
     sha256: str | None = None
     md5: str | None = None
     license: str | None = None
@@ -157,7 +158,7 @@ def _record_to_package(record: PackageRecord) -> RattlerLockV6Package:
     :return: RattlerLockV6Package with metadata
     """
     # Build kwargs for RattlerLockV6Package constructor
-    kwargs = {"conda": record.url}
+    kwargs = {"conda": record.url, "build_number": record.build_number}
 
     # Add optional metadata fields that rattler_lock includes in v6 lockfiles
     # https://github.com/conda/rattler/blob/rattler_lock-v0.23.5/crates/rattler_lock/src/parse/models/v6/conda_package_data.rs#L46
