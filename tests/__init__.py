@@ -63,6 +63,6 @@ def compare_rattler_lock_v6(lockfile: Path, reference: Path) -> Any:
 
 
 def compare_rattler_lock_v7(lockfile: Path, reference: Path) -> Any:
-    lockfile_data = yaml_safe_load(lockfile.read_text())
-    reference_data = yaml_safe_load(reference.read_text())
+    lockfile_data = yaml.loads(lockfile.read_text())
+    reference_data = yaml.loads(reference.read_text())
     return lockfile_data == reference_data

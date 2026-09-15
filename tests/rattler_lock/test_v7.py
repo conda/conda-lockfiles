@@ -5,13 +5,18 @@ from typing import TYPE_CHECKING
 
 import pytest
 from conda.base.context import context, reset_context
+from conda.common.serialize import yaml
+from conda.core.package_cache_data import PackageCacheData, ProgressiveFetchExtract
 from conda.exceptions import CondaValueError
+from conda.models.environment import Environment, EnvironmentConfig
+from conda.models.records import PackageRecord
 
 from conda_lockfiles.exceptions import EnvironmentExportNotSupported
 from conda_lockfiles.load_yaml import load_yaml
 from conda_lockfiles.rattler_lock.v7 import (
     PIXI_LOCK_FILE,
     RattlerLockV7Loader,
+    multiplatform_export,
     rattler_lock_v7_to_conda_env,
 )
 
@@ -31,6 +36,42 @@ if TYPE_CHECKING:
 
 
 V7_REFERENCE_FILE = "pixi-v7.lock"
+
+
+@pytest.mark.parametrize(
+    "build_number", [pytest.param(0, id="zero"), 7, pytest.param(None, id="omitted")]
+)
+def test_build_number_round_trip_preserves_metadata(
+    tmp_path: Path, monkeypatch, build_number: int | None
+) -> None:
+    channel = "https://example.test/channel"
+    record = PackageRecord(
+        name="probe",
+        version="1.0",
+        build="h0_0",
+        build_number=build_number or 0,
+        subdir="linux-64",
+        channel=channel,
+        url=f"{channel}/linux-64/probe-1.0-h0_0.conda",
+    )
+    environment = Environment(
+        platform="linux-64",
+        config=EnvironmentConfig(channels=(channel,)),
+        explicit_packages=[record],
+    )
+    data = yaml.loads(multiplatform_export([environment]))
+    assert data["packages"][0]["build_number"] == record.build_number
+    if build_number is None:
+        del data["packages"][0]["build_number"]
+    path = tmp_path / PIXI_LOCK_FILE
+    path.write_text(yaml.dumps(data))
+
+    cached = PackageRecord.from_objects(record, build_number=99)
+    monkeypatch.setattr(ProgressiveFetchExtract, "execute", lambda self: None)
+    monkeypatch.setattr(PackageCacheData, "query_all", lambda *args: iter([cached]))
+    loaded = RattlerLockV7Loader(path).env_for("linux-64").explicit_packages[0]
+    assert loaded.build_number == (99 if build_number is None else build_number)
+    assert loaded.build == "h0_0"
 
 
 @pytest.mark.parametrize(

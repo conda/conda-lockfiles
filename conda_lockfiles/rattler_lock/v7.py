@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Annotated  # noqa: TCH003
 
 from conda.base.context import context
 from conda.common.io import dashlist
-from conda.common.serialize import yaml_safe_dump
+from conda.common.serialize import yaml
 from conda.exceptions import CondaValueError
 from conda.models.channel import Channel
 from conda.models.environment import Environment, EnvironmentConfig
@@ -138,6 +138,7 @@ class RattlerLockV7Package(RattlerLockV7PackageReference):
     # Common metadata
     version: str | None = None
     build: str | None = None
+    build_number: int | None = None
     subdir: str | None = None
     noarch: str | None = None
     sha256: str | None = None
@@ -203,7 +204,7 @@ def _record_to_package(record: PackageRecord) -> RattlerLockV7Package:
     :param record: Conda package record
     :return: RattlerLockV7Package with metadata
     """
-    kwargs: dict[str, Any] = {"conda": record.url}
+    kwargs: dict[str, Any] = {"conda": record.url, "build_number": record.build_number}
 
     fields = [
         "sha256",
@@ -349,7 +350,7 @@ def multiplatform_export(envs: Iterable[Environment]) -> str:
     """Export Environment to rattler lock v7 format."""
     lockfile = rattler_lock_v7_from_conda_envs(envs)
     try:
-        return yaml_safe_dump(
+        return yaml.dumps(
             lockfile.model_dump(
                 exclude_none=True,
                 mode="python",
