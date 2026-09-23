@@ -1,5 +1,28 @@
 [//]: # (current developments)
 
+## 0.2.2 (2026-09-23)
+
+### Bug fixes
+
+* Preserve explicit build numbers when exporting and loading rattler-lock v6 packages, including zero and values that cannot be inferred from package URLs. (#176 via #175)
+* Replace deprecated conda YAML serialization helpers to avoid pending deprecation warnings. (#158)
+
+### Other
+
+* Add workflow concurrency limits. (#167)
+* Refresh shared infrastructure files and synchronize dependabot configuration. (#159, #160, #162, #163, #164, #169, #170, #173, #180)
+* Update GitHub Actions dependencies and Ruff pre-commit hooks. (#165, #166, #168, #172, #174, #181)
+* Align the repository's conda requirement with the existing `>=26.3.0` requirement in the Anaconda and conda-forge packages for conda-lockfiles 0.2.1. (#182)
+
+### Contributors
+
+* @danyeaw
+* @jezdez
+* @conda-bot
+* @dependabot[bot]
+
+
+
 ## 0.2.1 (2026-07-07)
 
 ### Docs

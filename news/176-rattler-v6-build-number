@@ -1,3 +1,0 @@
-### Bug fixes
-
-* Preserve explicit build numbers when exporting and loading rattler-lock v6 packages, including zero and values that cannot be inferred from package URLs. (#176 via #175)

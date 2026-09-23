@@ -1,7 +1,0 @@
-### Bug fixes
-
-* Replace deprecated conda YAML serialization helpers to avoid pending deprecation warnings. (#158)
-
-### Other
-
-* Align the repository's conda requirement with the existing `>=26.3.0` requirement in the Anaconda and conda-forge packages for conda-lockfiles 0.2.1. (#182)
