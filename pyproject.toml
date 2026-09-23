@@ -22,7 +22,7 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-  # "conda >=26.1.0",
+  # "conda >=25.9.0",
   "ruamel.yaml",
   "pydantic>=2.12.5,<3"
 ]
@@ -40,7 +40,7 @@ platforms = ["linux-64", "osx-64", "osx-arm64", "win-64", "linux-aarch64"]
 
 [tool.pixi.dependencies]
 python = ">=3.10"
-conda = ">=26.3.0"
+conda = ">=25.9.0"
 "ruamel.yaml" = "*"
 pydantic = ">=2.12.5,<3"
 
@@ -100,6 +100,12 @@ python = "3.13.*"
 [tool.pixi.feature.py314.dependencies]
 python = "3.14.*"
 
+[tool.pixi.feature.conda259]
+platforms = ["linux-64", "osx-arm64"]
+
+[tool.pixi.feature.conda259.dependencies]
+conda = "==25.9.0"
+
 [tool.pixi.environments]
 dev = ["py310"]
 build = ["build"]
@@ -109,6 +115,7 @@ test-py311 = ["test", "py311"]
 test-py312 = ["test", "py312"]
 test-py313 = ["test", "py313"]
 test-py314 = ["test", "py314"]
+test-conda259 = ["test", "py310", "conda259"]
 
 [tool.hatch.version]
 source = "vcs"

@@ -111,6 +111,8 @@ def test_noarch(
             "export",
             f"--prefix={prefix}",
             f"--file={lockfile}",
+            "--override-channels",
+            "--channel=conda-forge",
             "--override-platforms",
             *(f"--platform={platform}" for platform in platforms),
         )
@@ -194,6 +196,7 @@ def test_build_number_round_trip_overrides_cached_record(
         url=f"{channel}/linux-64/probe-1.0-h0_0.conda",
     )
     environment = Environment(
+        prefix=str(tmp_path),
         platform="linux-64",
         config=EnvironmentConfig(channels=(channel,)),
         explicit_packages=[record],

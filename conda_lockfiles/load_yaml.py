@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import cache
 from typing import TYPE_CHECKING
 
-from conda.common.serialize import yaml
+from . import _yaml as yaml
 
 if TYPE_CHECKING:
     from pathlib import Path

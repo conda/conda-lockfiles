@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from conda.base.context import context
-from conda.plugins.types import EnvironmentFormat
+from conda.plugins import types
 
 if TYPE_CHECKING:
     from conda.plugins.manager import CondaPluginManager
@@ -45,6 +45,9 @@ PYTHONHOSTED_WHEEL_SHA256 = (
 )
 
 
+@pytest.mark.skipif(
+    not hasattr(types, "EnvironmentFormat"), reason="conda lacks plugin metadata"
+)
 @pytest.mark.parametrize(
     "format_name,expected_description",
     [
@@ -67,9 +70,12 @@ def test_specifier_plugin_metadata(
     specifier = specifiers.get(format_name)
     assert specifier is not None
     assert specifier.description == expected_description
-    assert specifier.environment_format == EnvironmentFormat.lockfile
+    assert specifier.environment_format == types.EnvironmentFormat.lockfile
 
 
+@pytest.mark.skipif(
+    not hasattr(types, "EnvironmentFormat"), reason="conda lacks plugin metadata"
+)
 @pytest.mark.parametrize(
     "format_name,expected_description",
     [
@@ -91,9 +97,13 @@ def test_exporter_plugin_metadata(
     exporter = plugin_manager.get_environment_exporter_by_format(format_name)
     assert exporter is not None
     assert exporter.description == expected_description
-    assert exporter.environment_format == EnvironmentFormat.lockfile
+    assert exporter.environment_format == types.EnvironmentFormat.lockfile
 
 
+@pytest.mark.skipif(
+    "aliases" not in types.CondaEnvironmentSpecifier.__dataclass_fields__,
+    reason="conda lacks specifier aliases",
+)
 @pytest.mark.parametrize(
     "alias,canonical_format",
     [
@@ -130,6 +140,17 @@ def test_exporter_alias_resolves(
     exporter = plugin_manager.get_environment_exporter_by_format(alias)
     assert exporter is not None
     assert exporter.name == canonical_format
+
+
+@pytest.mark.parametrize(
+    "format_name,path",
+    [
+        (conda_lock_v1.FORMAT, CONDA_LOCK_METADATA_DIR / conda_lock_v1.CONDA_LOCK_FILE),
+        (rattler_lock_v6.FORMAT, PIXI_METADATA_DIR / rattler_lock_v6.PIXI_LOCK_FILE),
+    ],
+)
+def test_specifier_autodetection(plugin_manager, format_name, path) -> None:
+    assert plugin_manager.get_environment_specifier(path).name == format_name
 
 
 def test_create_environment_from_conda_lock_v1(

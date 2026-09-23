@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from conda.common.serialize import yaml
+from conda_lockfiles import _yaml as yaml
 
 if TYPE_CHECKING:
     from typing import Any, TypedDict
