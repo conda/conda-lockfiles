@@ -1,60 +1,60 @@
 - name: Jannis Leidel
   github: jezdez
   email: jannis@leidel.info
-  num_commits: 0
+  num_commits: 18
   first_commit: 2025-05-06 10:09:35
 - name: Ryan Keith
   github: ryanskeith
   email: rkeith@anaconda.com
-  num_commits: 0
+  num_commits: 1
   first_commit: 2026-04-17 00:59:15
 - name: conda-bot
   github: conda-bot
   email: 18747875+conda-bot@users.noreply.github.com
-  num_commits: 0
+  num_commits: 19
   first_commit: 2025-05-09 10:58:15
 - name: pre-commit-ci[bot]
   github: pre-commit-ci[bot]
   email: 66853113+pre-commit-ci[bot]@users.noreply.github.com
-  num_commits: 0
+  num_commits: 34
   first_commit: 2025-05-21 12:49:30
 - name: Ken Odegard
   github: kenodegard
   email: kodegard@anaconda.com
-  num_commits: 0
+  num_commits: 26
   first_commit: 2025-05-05 19:51:33
 - name: Dan Yeaw
   github: danyeaw
   email: dan@yeaw.me
-  num_commits: 0
+  num_commits: 5
   first_commit: 2026-04-06 16:30:42
 - name: Katherine Kinnaman
   github: kathatherine
   email: kkinnaman@anaconda.com
-  num_commits: 0
+  num_commits: 2
   first_commit: 2026-04-28 15:27:37
 - name: Jonathan J. Helmus
   github: jjhelmus
   email: jjhelmus@gmail.com
-  num_commits: 0
+  num_commits: 7
   first_commit: 2025-05-08 21:23:27
 - name: jaimergp
   github: jaimergp
   email: jaimergp@users.noreply.github.com
-  num_commits: 0
+  num_commits: 5
   first_commit: 2025-04-27 13:14:00
 - name: Travis Hathaway
   github: travishathaway
   email: travis.j.hathaway@gmail.com
-  num_commits: 0
+  num_commits: 3
   first_commit: 2025-10-08 10:15:18
 - name: Sophia Castellarin
   github: soapy1
   email: scastellarin@openteams.com
-  num_commits: 0
+  num_commits: 4
   first_commit: 2026-02-04 19:20:13
 - name: dependabot[bot]
   github: dependabot[bot]
   email: 49699333+dependabot[bot]@users.noreply.github.com
-  num_commits: 0
+  num_commits: 15
   first_commit: 2025-10-21 17:28:57
