@@ -24,7 +24,7 @@ requirements:
     - hatch-vcs >=0.2.0
   run:
     - python >=3.10
-    - conda >=26.1.0
+    - conda >=26.3.0
     - pydantic >=2,<3
     - ruamel.yaml
 
