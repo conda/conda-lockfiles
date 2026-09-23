@@ -120,8 +120,6 @@ def test_noarch(
             "export",
             f"--prefix={prefix}",
             f"--file={lockfile}",
-            "--override-channels",
-            "--channel=conda-forge",
             "--override-platforms",
             *(f"--platform={platform}" for platform in platforms),
         )

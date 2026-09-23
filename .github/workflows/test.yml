@@ -33,11 +33,8 @@ jobs:
         include:
           - os: macos-latest
             python-version: "314"
-          - os: ubuntu-latest
-            python-version: "310-conda259"
-            pixi-environment: test-conda259
     env:
-      PIXI_ENV_NAME: ${{ matrix.pixi-environment || format('test-py{0}', matrix.python-version) }}
+      PIXI_ENV_NAME: test-py${{ matrix.python-version }}
       CONDA_NOTIFY_OUTDATED_CONDA: "false"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

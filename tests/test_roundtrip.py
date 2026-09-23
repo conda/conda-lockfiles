@@ -147,7 +147,6 @@ def test_multiplatform_export(
             f"--prefix={prefix}",
             f"--format={format}",
             f"--file={lockfile}",
-            *CONDA_FORGE_CHANNEL_ARGS,
             "--override-platforms",
             *(f"--platform={platform}" for platform in platforms),
         )

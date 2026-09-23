@@ -1,4 +1,7 @@
 ### Bug fixes
 
-* Use the current conda YAML API when available to avoid pending deprecation warnings, while retaining the older helpers for conda 25.9. (#158)
-* Restore conda 25.9 compatibility by registering plugins without unsupported metadata fields. Specifier aliases require a newer conda with alias support. Canonical format names and exporter aliases remain available on conda 25.9.
+* Replace deprecated conda YAML serialization helpers to avoid pending deprecation warnings. (#158)
+
+### Other
+
+* Align the repository's conda requirement with the existing `>=26.3.0` requirement in the Anaconda and conda-forge packages for conda-lockfiles 0.2.1. (#182)

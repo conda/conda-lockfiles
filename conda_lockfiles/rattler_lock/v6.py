@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Annotated  # noqa: TCH003
 
 from conda.base.context import context
 from conda.common.io import dashlist
+from conda.common.serialize import yaml
 from conda.exceptions import CondaValueError
 from conda.models.channel import Channel
 from conda.models.environment import Environment, EnvironmentConfig
@@ -14,7 +15,6 @@ from ruamel.yaml import YAMLError
 from ruamel.yaml.parser import ParserError
 
 from .. import CONDA_PYPI_CHANNEL_NAME, PYTHONHOSTED_URL_PREFIX
-from .. import _yaml as yaml
 from ..exceptions import CondaLockfilesParserError, CondaLockfilesValidationError
 from ..load_yaml import load_yaml
 from ..records_from_conda_urls import records_from_conda_urls
