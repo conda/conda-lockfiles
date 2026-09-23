@@ -144,3 +144,6 @@ conda_lockfiles/_version.py
 
 # vscode
 .vscode/
+
+# rever release state
+rever/
