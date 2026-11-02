@@ -43,6 +43,8 @@ PYTHONHOSTED_WHEEL_MD5 = "0123456789abcdef0123456789abcdef"
 PYTHONHOSTED_WHEEL_SHA256 = (
     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 )
+LOCAL_WHEEL_CHANNEL = "file:///tmp/local-pypi"
+LOCAL_WHEEL_URL = f"{LOCAL_WHEEL_CHANNEL}/noarch/profiletools-0.2.0-py3-none-any.whl"
 
 
 @pytest.mark.parametrize(
@@ -353,3 +355,68 @@ def test_conda_pypi_record_overrides(
     load_env(lockfile, platform="osx-arm64")
 
     assert captured_metadata[PYTHONHOSTED_WHEEL_URL] == expected_overrides
+
+
+@pytest.mark.parametrize(
+    "module,lockfile,load_env",
+    [
+        pytest.param(
+            conda_lock_v1,
+            conda_lock_v1.CondaLockV1(
+                metadata=conda_lock_v1.CondaLockV1Metadata(
+                    channels=[
+                        conda_lock_v1.CondaLockV1Channel(url=LOCAL_WHEEL_CHANNEL),
+                    ],
+                    platforms=["osx-arm64"],
+                ),
+                package=[
+                    conda_lock_v1.CondaLockV1Package(
+                        name="profiletools",
+                        version="0.2.0",
+                        manager="conda",
+                        platform="osx-arm64",
+                        url=LOCAL_WHEEL_URL,
+                    )
+                ],
+            ),
+            conda_lock_v1.conda_lock_v1_to_conda_env,
+            id="conda-lock-v1",
+        ),
+        pytest.param(
+            rattler_lock_v6,
+            rattler_lock_v6.RattlerLockV6(
+                environments={
+                    "default": rattler_lock_v6.RattlerLockV6Environment(
+                        channels=[
+                            rattler_lock_v6.RattlerLockV6Channel(
+                                url=LOCAL_WHEEL_CHANNEL
+                            ),
+                        ],
+                        packages={
+                            "osx-arm64": [
+                                rattler_lock_v6.RattlerLockV6PackageReference(
+                                    conda=LOCAL_WHEEL_URL,
+                                )
+                            ]
+                        },
+                    )
+                },
+                packages=[rattler_lock_v6.RattlerLockV6Package(conda=LOCAL_WHEEL_URL)],
+            ),
+            rattler_lock_v6.rattler_lock_v6_to_conda_env,
+            id="rattler-lock-v6",
+        ),
+    ],
+)
+def test_local_wheel_channel_overrides(
+    module, lockfile, load_env, mocker: MockerFixture
+) -> None:
+    captured_metadata = {}
+
+    def capture_records(metadata_by_url, **kwargs):
+        captured_metadata.update(metadata_by_url)
+        return ()
+
+    mocker.patch.object(module, "records_from_conda_urls", side_effect=capture_records)
+    load_env(lockfile, platform="osx-arm64")
+    assert captured_metadata[LOCAL_WHEEL_URL]["channel"] == LOCAL_WHEEL_CHANNEL
