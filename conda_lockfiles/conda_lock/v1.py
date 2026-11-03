@@ -16,7 +16,8 @@ from pydantic import BaseModel, Field, ValidationError
 from ruamel.yaml import YAMLError
 from ruamel.yaml.parser import ParserError
 
-from .. import CONDA_PYPI_CHANNEL_NAME, PYTHONHOSTED_URL_PREFIX, __version__
+from .. import __version__
+from ..channel_for_package_url import channel_for_package_url
 from ..exceptions import CondaLockfilesParserError, CondaLockfilesValidationError
 from ..load_yaml import load_yaml
 from ..records_from_conda_urls import records_from_conda_urls
@@ -241,14 +242,9 @@ def conda_lock_v1_to_conda_env(
     # Map conda-lock v1 packages to conda/external package records
     explicit_packages: dict[str, dict[str, Any]] = {}
     external_packages: dict[str, list[str]] = {}
-    conda_pypi_channel = next(
-        (
-            channel.url
-            for channel in lockfile.metadata.channels
-            if Channel(channel.url).canonical_name == CONDA_PYPI_CHANNEL_NAME
-        ),
-        None,
-    )
+
+    channel_urls = tuple(channel.url for channel in lockfile.metadata.channels)
+
     for pkg in lockfile.package:
         # Filter packages
         if pkg.platform != platform:
@@ -270,8 +266,8 @@ def conda_lock_v1_to_conda_env(
                 "version": pkg.version,
                 **pkg.hash.model_dump(exclude_none=True),
             }
-            if conda_pypi_channel and pkg.url.startswith(PYTHONHOSTED_URL_PREFIX):
-                overrides["channel"] = conda_pypi_channel
+            if channel := channel_for_package_url(pkg.url, channel_urls):
+                overrides["channel"] = channel
             explicit_packages[pkg.url] = overrides
         else:
             # Map conda-lock v1 package type to conda package type

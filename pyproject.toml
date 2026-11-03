@@ -84,6 +84,7 @@ pytest-cov = ">=6.1.1,<7"
 # Pixi is provided by the ambient setup-pixi action, only conda-lock needs
 # to land in the test env itself.
 conda-lock = "*"
+conda-pypi = "*"
 
 [tool.pixi.feature.py310.dependencies]
 python = "3.10.*"

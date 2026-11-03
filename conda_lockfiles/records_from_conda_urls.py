@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 from conda.base.context import context
 from conda.common.io import dashlist
@@ -34,7 +35,8 @@ def records_from_conda_urls(
     """
     fetch_specs = [
         MatchSpec(
-            url, **{key: metadata[key] for key in ("md5", "sha256") if key in metadata}
+            {"url": url} if urlsplit(url).path.endswith(".whl") else url,
+            **{key: metadata[key] for key in ("md5", "sha256") if key in metadata},
         )
         for url, metadata in metadata_by_url.items()
     ]

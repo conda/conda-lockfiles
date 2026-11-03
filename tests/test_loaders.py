@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
+from zipfile import ZipFile
 
 import pytest
 from conda.base.context import context
+from conda.core.package_cache_data import PackageCacheData
 from conda.plugins.types import EnvironmentFormat
 
 if TYPE_CHECKING:
@@ -43,6 +46,8 @@ PYTHONHOSTED_WHEEL_MD5 = "0123456789abcdef0123456789abcdef"
 PYTHONHOSTED_WHEEL_SHA256 = (
     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 )
+LOCAL_WHEEL_CHANNEL = "file:///tmp/local-pypi"
+LOCAL_WHEEL_URL = f"{LOCAL_WHEEL_CHANNEL}/noarch/profiletools-0.2.0-py3-none-any.whl"
 
 
 @pytest.mark.parametrize(
@@ -353,3 +358,166 @@ def test_conda_pypi_record_overrides(
     load_env(lockfile, platform="osx-arm64")
 
     assert captured_metadata[PYTHONHOSTED_WHEEL_URL] == expected_overrides
+
+
+@pytest.mark.parametrize(
+    "module,lockfile,load_env",
+    [
+        pytest.param(
+            conda_lock_v1,
+            conda_lock_v1.CondaLockV1(
+                metadata=conda_lock_v1.CondaLockV1Metadata(
+                    channels=[
+                        conda_lock_v1.CondaLockV1Channel(url=LOCAL_WHEEL_CHANNEL),
+                    ],
+                    platforms=["osx-arm64"],
+                ),
+                package=[
+                    conda_lock_v1.CondaLockV1Package(
+                        name="profiletools",
+                        version="0.2.0",
+                        manager="conda",
+                        platform="osx-arm64",
+                        url=LOCAL_WHEEL_URL,
+                    )
+                ],
+            ),
+            conda_lock_v1.conda_lock_v1_to_conda_env,
+            id="conda-lock-v1",
+        ),
+        pytest.param(
+            rattler_lock_v6,
+            rattler_lock_v6.RattlerLockV6(
+                environments={
+                    "default": rattler_lock_v6.RattlerLockV6Environment(
+                        channels=[
+                            rattler_lock_v6.RattlerLockV6Channel(
+                                url=LOCAL_WHEEL_CHANNEL
+                            ),
+                        ],
+                        packages={
+                            "osx-arm64": [
+                                rattler_lock_v6.RattlerLockV6PackageReference(
+                                    conda=LOCAL_WHEEL_URL,
+                                )
+                            ]
+                        },
+                    )
+                },
+                packages=[rattler_lock_v6.RattlerLockV6Package(conda=LOCAL_WHEEL_URL)],
+            ),
+            rattler_lock_v6.rattler_lock_v6_to_conda_env,
+            id="rattler-lock-v6",
+        ),
+    ],
+)
+def test_local_wheel_channel_overrides(
+    module, lockfile, load_env, mocker: MockerFixture
+) -> None:
+    captured_metadata = {}
+
+    def capture_records(metadata_by_url, **kwargs):
+        captured_metadata.update(metadata_by_url)
+        return ()
+
+    mocker.patch.object(module, "records_from_conda_urls", side_effect=capture_records)
+    load_env(lockfile, platform="osx-arm64")
+    assert captured_metadata[LOCAL_WHEEL_URL]["channel"] == LOCAL_WHEEL_CHANNEL
+
+
+@pytest.mark.parametrize("layout", ["noarch", "profiletools"])
+@pytest.mark.parametrize("populated_cache", [True, False], ids=["populated", "empty"])
+@pytest.mark.parametrize(
+    "loader_index",
+    [pytest.param(0, id="conda-lock-v1"), pytest.param(1, id="rattler-v6")],
+)
+def test_local_wheel_records_from_cache(
+    tmp_path, tmp_pkgs_dir, layout, populated_cache, loader_index
+) -> None:
+    """Both loaders preserve wheel records with populated and empty caches."""
+    if not populated_cache:
+        pytest.importorskip("conda_pypi")
+    channel_dir = tmp_path / "local-pypi"
+    wheel = channel_dir / layout / "profiletools-0.2.0-py3-none-any.whl"
+    wheel.parent.mkdir(parents=True)
+    # Build a wheel.
+    with ZipFile(wheel, "w") as archive:
+        archive.writestr("profiletools/__init__.py", "")
+        archive.writestr(
+            "profiletools-0.2.0.dist-info/METADATA",
+            "Metadata-Version: 2.1\nName: profiletools\nVersion: 0.2.0\n",
+        )
+        archive.writestr(
+            "profiletools-0.2.0.dist-info/WHEEL",
+            "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n",
+        )
+        archive.writestr("profiletools-0.2.0.dist-info/RECORD", "")
+    channel, url = channel_dir.as_uri(), wheel.as_uri()
+
+    if populated_cache:
+        (tmp_pkgs_dir / wheel.name).write_bytes(wheel.read_bytes())
+        extracted = tmp_pkgs_dir / "profiletools-0.2.0-py3-none-any"
+        with ZipFile(wheel) as archive:
+            archive.extractall(extracted)
+        info = extracted / "info"
+        info.mkdir()
+        (info / "index.json").write_text(
+            json.dumps(
+                {
+                    "name": "profiletools",
+                    "version": "0.2.0",
+                    "build": "py3_none_any_0",
+                    "build_number": 0,
+                    "subdir": "noarch",
+                    "fn": wheel.name,
+                    "url": url,
+                    "depends": [],
+                }
+            )
+        )
+
+    loaders = [
+        (
+            conda_lock_v1.CondaLockV1(
+                metadata=conda_lock_v1.CondaLockV1Metadata(
+                    channels=[conda_lock_v1.CondaLockV1Channel(url=channel)],
+                    platforms=["osx-arm64"],
+                ),
+                package=[
+                    conda_lock_v1.CondaLockV1Package(
+                        name="profiletools",
+                        version="0.2.0",
+                        manager="conda",
+                        platform="osx-arm64",
+                        url=url,
+                    )
+                ],
+            ),
+            conda_lock_v1.conda_lock_v1_to_conda_env,
+        ),
+        (
+            rattler_lock_v6.RattlerLockV6(
+                environments={
+                    "default": rattler_lock_v6.RattlerLockV6Environment(
+                        channels=[rattler_lock_v6.RattlerLockV6Channel(url=channel)],
+                        packages={
+                            "osx-arm64": [
+                                rattler_lock_v6.RattlerLockV6PackageReference(conda=url)
+                            ]
+                        },
+                    )
+                },
+                packages=[rattler_lock_v6.RattlerLockV6Package(conda=url)],
+            ),
+            rattler_lock_v6.rattler_lock_v6_to_conda_env,
+        ),
+    ]
+    lockfile, load_env = loaders[loader_index]
+    (record,) = load_env(lockfile, platform="osx-arm64").explicit_packages
+    (cache_record,) = PackageCacheData(tmp_pkgs_dir).values()
+    assert (record.name, record.version, record.build, record.channel) == (
+        "profiletools",
+        "0.2.0",
+        cache_record.build,
+        channel,
+    )
