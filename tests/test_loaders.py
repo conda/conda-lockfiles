@@ -426,11 +426,11 @@ def test_local_wheel_channel_overrides(
 
 @pytest.mark.parametrize("layout", ["noarch", "profiletools"])
 def test_local_wheel_records_from_cache(tmp_path, tmp_pkgs_dir, layout) -> None:
-    """Both loaders return the real cached wheel record, with its channel."""
+    """Both loaders load the wheel from the cache and keep its channel."""
     channel_dir = tmp_path / "local-pypi"
     wheel = channel_dir / layout / "profiletools-0.2.0-py3-none-any.whl"
     wheel.parent.mkdir(parents=True)
-    # A wheel is a zip archive; writestr adds an entry without temp files.
+    # Build a wheel.
     with ZipFile(wheel, "w") as archive:
         archive.writestr("profiletools/__init__.py", "")
         archive.writestr(
@@ -444,8 +444,8 @@ def test_local_wheel_records_from_cache(tmp_path, tmp_pkgs_dir, layout) -> None:
         archive.writestr("profiletools-0.2.0.dist-info/RECORD", "")
     channel, url = channel_dir.as_uri(), wheel.as_uri()
 
-    # Seed the cache as conda-pypi leaves it after fetching this wheel, so
-    # the unmocked fetch/cache lookup in records_from_conda_urls runs.
+    # Put the wheel in the package cache and unpack it there, so
+    # records_from_conda_urls() finds it there. Nothing is mocked.
     (tmp_pkgs_dir / wheel.name).write_bytes(wheel.read_bytes())
     extracted = tmp_pkgs_dir / "profiletools-0.2.0-py3-none-any"
     with ZipFile(wheel) as archive:
