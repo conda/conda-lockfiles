@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
+from zipfile import ZipFile
 
 import pytest
 from conda.base.context import context
@@ -420,3 +422,92 @@ def test_local_wheel_channel_overrides(
     mocker.patch.object(module, "records_from_conda_urls", side_effect=capture_records)
     load_env(lockfile, platform="osx-arm64")
     assert captured_metadata[LOCAL_WHEEL_URL]["channel"] == LOCAL_WHEEL_CHANNEL
+
+
+@pytest.mark.parametrize("layout", ["noarch", "profiletools"])
+def test_local_wheel_records_from_cache(tmp_path, tmp_pkgs_dir, layout) -> None:
+    """Both loaders return the real cached wheel record, with its channel."""
+    channel_dir = tmp_path / "local-pypi"
+    wheel = channel_dir / layout / "profiletools-0.2.0-py3-none-any.whl"
+    wheel.parent.mkdir(parents=True)
+    # A wheel is a zip archive; writestr adds an entry without temp files.
+    with ZipFile(wheel, "w") as archive:
+        archive.writestr("profiletools/__init__.py", "")
+        archive.writestr(
+            "profiletools-0.2.0.dist-info/METADATA",
+            "Metadata-Version: 2.1\nName: profiletools\nVersion: 0.2.0\n",
+        )
+        archive.writestr(
+            "profiletools-0.2.0.dist-info/WHEEL",
+            "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n",
+        )
+        archive.writestr("profiletools-0.2.0.dist-info/RECORD", "")
+    channel, url = channel_dir.as_uri(), wheel.as_uri()
+
+    # Seed the cache as conda-pypi leaves it after fetching this wheel, so
+    # the unmocked fetch/cache lookup in records_from_conda_urls runs.
+    (tmp_pkgs_dir / wheel.name).write_bytes(wheel.read_bytes())
+    extracted = tmp_pkgs_dir / "profiletools-0.2.0-py3-none-any"
+    with ZipFile(wheel) as archive:
+        archive.extractall(extracted)
+    info = extracted / "info"
+    info.mkdir()
+    (info / "index.json").write_text(
+        json.dumps(
+            {
+                "name": "profiletools",
+                "version": "0.2.0",
+                "build": "py3_none_any_0",
+                "build_number": 0,
+                "subdir": "noarch",
+                "fn": wheel.name,
+                "url": url,
+                "depends": [],
+            }
+        )
+    )
+
+    loaders = [
+        (
+            conda_lock_v1.CondaLockV1(
+                metadata=conda_lock_v1.CondaLockV1Metadata(
+                    channels=[conda_lock_v1.CondaLockV1Channel(url=channel)],
+                    platforms=["osx-arm64"],
+                ),
+                package=[
+                    conda_lock_v1.CondaLockV1Package(
+                        name="profiletools",
+                        version="0.2.0",
+                        manager="conda",
+                        platform="osx-arm64",
+                        url=url,
+                    )
+                ],
+            ),
+            conda_lock_v1.conda_lock_v1_to_conda_env,
+        ),
+        (
+            rattler_lock_v6.RattlerLockV6(
+                environments={
+                    "default": rattler_lock_v6.RattlerLockV6Environment(
+                        channels=[rattler_lock_v6.RattlerLockV6Channel(url=channel)],
+                        packages={
+                            "osx-arm64": [
+                                rattler_lock_v6.RattlerLockV6PackageReference(conda=url)
+                            ]
+                        },
+                    )
+                },
+                packages=[rattler_lock_v6.RattlerLockV6Package(conda=url)],
+            ),
+            rattler_lock_v6.rattler_lock_v6_to_conda_env,
+        ),
+    ]
+    for lockfile, load_env in loaders:
+        (record,) = load_env(lockfile, platform="osx-arm64").explicit_packages
+        assert (record.name, record.version, record.build, record.channel) == (
+            "profiletools",
+            "0.2.0",
+            "py3_none_any_0",
+            channel,
+        )
