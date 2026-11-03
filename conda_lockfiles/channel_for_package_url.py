@@ -13,9 +13,7 @@ if TYPE_CHECKING:
 
 def base_urls(channel: str) -> tuple[str, ...]:
     """Expanded URLs that packages from this channel can start with."""
-    return tuple(
-        base.rstrip("/") for base in Channel(channel).base_urls if base
-    )
+    return tuple(base.rstrip("/") for base in Channel(channel).base_urls if base)
 
 
 def channel_for_package_url(package_url: str, channels: Iterable[str]) -> str | None:

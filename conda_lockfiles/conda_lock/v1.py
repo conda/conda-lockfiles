@@ -17,12 +17,11 @@ from ruamel.yaml import YAMLError
 from ruamel.yaml.parser import ParserError
 
 from .. import __version__
+from ..channel_for_package_url import channel_for_package_url
 from ..exceptions import CondaLockfilesParserError, CondaLockfilesValidationError
 from ..load_yaml import load_yaml
 from ..records_from_conda_urls import records_from_conda_urls
 from ..validate_urls import validate_urls
-from ..channel_for_package_url import channel_for_package_url
-
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

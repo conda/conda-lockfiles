@@ -6,6 +6,7 @@ from zipfile import ZipFile
 
 import pytest
 from conda.base.context import context
+from conda.core.package_cache_data import PackageCacheData
 from conda.plugins.types import EnvironmentFormat
 
 if TYPE_CHECKING:
@@ -425,8 +426,17 @@ def test_local_wheel_channel_overrides(
 
 
 @pytest.mark.parametrize("layout", ["noarch", "profiletools"])
-def test_local_wheel_records_from_cache(tmp_path, tmp_pkgs_dir, layout) -> None:
-    """Both loaders load the wheel from the cache and keep its channel."""
+@pytest.mark.parametrize("populated_cache", [True, False], ids=["populated", "empty"])
+@pytest.mark.parametrize(
+    "loader_index",
+    [pytest.param(0, id="conda-lock-v1"), pytest.param(1, id="rattler-v6")],
+)
+def test_local_wheel_records_from_cache(
+    tmp_path, tmp_pkgs_dir, layout, populated_cache, loader_index
+) -> None:
+    """Both loaders preserve wheel records with populated and empty caches."""
+    if not populated_cache:
+        pytest.importorskip("conda_pypi")
     channel_dir = tmp_path / "local-pypi"
     wheel = channel_dir / layout / "profiletools-0.2.0-py3-none-any.whl"
     wheel.parent.mkdir(parents=True)
@@ -444,28 +454,27 @@ def test_local_wheel_records_from_cache(tmp_path, tmp_pkgs_dir, layout) -> None:
         archive.writestr("profiletools-0.2.0.dist-info/RECORD", "")
     channel, url = channel_dir.as_uri(), wheel.as_uri()
 
-    # Put the wheel in the package cache and unpack it there, so
-    # records_from_conda_urls() finds it there. Nothing is mocked.
-    (tmp_pkgs_dir / wheel.name).write_bytes(wheel.read_bytes())
-    extracted = tmp_pkgs_dir / "profiletools-0.2.0-py3-none-any"
-    with ZipFile(wheel) as archive:
-        archive.extractall(extracted)
-    info = extracted / "info"
-    info.mkdir()
-    (info / "index.json").write_text(
-        json.dumps(
-            {
-                "name": "profiletools",
-                "version": "0.2.0",
-                "build": "py3_none_any_0",
-                "build_number": 0,
-                "subdir": "noarch",
-                "fn": wheel.name,
-                "url": url,
-                "depends": [],
-            }
+    if populated_cache:
+        (tmp_pkgs_dir / wheel.name).write_bytes(wheel.read_bytes())
+        extracted = tmp_pkgs_dir / "profiletools-0.2.0-py3-none-any"
+        with ZipFile(wheel) as archive:
+            archive.extractall(extracted)
+        info = extracted / "info"
+        info.mkdir()
+        (info / "index.json").write_text(
+            json.dumps(
+                {
+                    "name": "profiletools",
+                    "version": "0.2.0",
+                    "build": "py3_none_any_0",
+                    "build_number": 0,
+                    "subdir": "noarch",
+                    "fn": wheel.name,
+                    "url": url,
+                    "depends": [],
+                }
+            )
         )
-    )
 
     loaders = [
         (
@@ -503,11 +512,12 @@ def test_local_wheel_records_from_cache(tmp_path, tmp_pkgs_dir, layout) -> None:
             rattler_lock_v6.rattler_lock_v6_to_conda_env,
         ),
     ]
-    for lockfile, load_env in loaders:
-        (record,) = load_env(lockfile, platform="osx-arm64").explicit_packages
-        assert (record.name, record.version, record.build, record.channel) == (
-            "profiletools",
-            "0.2.0",
-            "py3_none_any_0",
-            channel,
-        )
+    lockfile, load_env = loaders[loader_index]
+    (record,) = load_env(lockfile, platform="osx-arm64").explicit_packages
+    (cache_record,) = PackageCacheData(tmp_pkgs_dir).values()
+    assert (record.name, record.version, record.build, record.channel) == (
+        "profiletools",
+        "0.2.0",
+        cache_record.build,
+        channel,
+    )
