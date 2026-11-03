@@ -35,7 +35,8 @@ def records_from_conda_urls(
     """
     fetch_specs = [
         MatchSpec(
-            url, **{key: metadata[key] for key in ("md5", "sha256") if key in metadata}
+            {"url": url} if urlsplit(url).path.endswith(".whl") else url,
+            **{key: metadata[key] for key in ("md5", "sha256") if key in metadata},
         )
         for url, metadata in metadata_by_url.items()
     ]
