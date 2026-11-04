@@ -12,6 +12,7 @@ metadata:
     created_at: '2025-08-14T22:47:07Z'
   custom_metadata:
     created_by: conda-lockfiles 0.0.0
+    requested_specs: '["python_abi"]'
 package:
   - name: python_abi
     version: '3.13'
