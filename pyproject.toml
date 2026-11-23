@@ -44,6 +44,9 @@ conda = ">=26.3.0"
 "ruamel.yaml" = "*"
 pydantic = ">=2.12.5,<3"
 
+[tool.pixi.tasks]
+dev = 'python -c "import sys; print(sys.executable)"'
+
 [tool.pixi.feature.self.tasks]
 # Replace the released package with the local editable install.
 _install-self = { cmd = "conda pypi install -e . -q -y", default-environment = "test-py313" }
@@ -74,7 +77,7 @@ sphinx-sitemap = "*"
 sphinxcontrib-programoutput = "*"
 
 [tool.pixi.feature.test.tasks]
-test = 'python -m pytest --cov=conda_lockfiles'
+test = { cmd = 'python -m pytest --cov=conda_lockfiles', depends-on = ["_install-self"] }
 pre-commit = 'pre-commit'
 
 [tool.pixi.feature.test.dependencies]
