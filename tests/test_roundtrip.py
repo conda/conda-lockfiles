@@ -16,8 +16,8 @@ from . import compare_conda_lock_v1, compare_rattler_lock_v6
 CONDA_FORGE_CHANNEL_ARGS = ("--override-channels", "--channel=conda-forge")
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
-    from typing import Callable
 
     from conda.testing.fixtures import (
         CondaCLIFixture,
