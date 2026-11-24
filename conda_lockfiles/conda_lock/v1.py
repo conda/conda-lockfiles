@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import warnings
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal  # noqa: TCH003
 
@@ -179,7 +179,7 @@ def conda_lock_v1_from_conda_envs(envs: Iterable[Environment]) -> CondaLockV1:
         validate_urls(env, FORMAT)
 
     # Generate timestamp
-    timestamp = datetime.now(timezone.utc).strftime(TIMESTAMP)
+    timestamp = datetime.now(UTC).strftime(TIMESTAMP)
 
     # Build packages list (no deduplication for v1 format)
     packages: list[CondaLockV1Package] = [

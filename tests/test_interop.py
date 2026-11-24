@@ -21,8 +21,8 @@ from conda_lockfiles.conda_lock import v1 as conda_lock_v1
 from conda_lockfiles.rattler_lock import v6 as rattler_lock_v6
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
-    from typing import Callable
 
     from conda.testing.fixtures import (
         CondaCLIFixture,

@@ -16,8 +16,8 @@ from . import compare_conda_lock_v1, compare_rattler_lock_v6
 CONDA_FORGE_CHANNEL_ARGS = ("--override-channels", "--channel=conda-forge")
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
-    from typing import Callable
 
     from conda.testing.fixtures import (
         CondaCLIFixture,
@@ -170,7 +170,7 @@ def test_multiplatform_export(
                 # on Windows unpacking packages for non-Windows platforms fails but we
                 # ignore this since we only care about the solve/download
                 # TODO: use --dry-run or --download-only instead
-                if not (on_win and platform == context.subdir):
+                if not (on_win and platform != context.subdir):
                     raise
             else:
                 assert out

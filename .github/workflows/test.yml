@@ -29,10 +29,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["310", "311", "312", "313", "314"]
+        python-version: ["311", "312", "313", "314", "315"]
         include:
           - os: macos-latest
-            python-version: "314"
+            python-version: "315"
     env:
       PIXI_ENV_NAME: test-py${{ matrix.python-version }}
       CONDA_NOTIFY_OUTDATED_CONDA: "false"
