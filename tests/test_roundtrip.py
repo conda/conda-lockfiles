@@ -170,7 +170,7 @@ def test_multiplatform_export(
                 # on Windows unpacking packages for non-Windows platforms fails but we
                 # ignore this since we only care about the solve/download
                 # TODO: use --dry-run or --download-only instead
-                if not (on_win and platform == context.subdir):
+                if not (on_win and platform != context.subdir):
                     raise
             else:
                 assert out
